@@ -1,5 +1,7 @@
 # web-margin-notes
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Word-style margin comments for any Markdown draft — as a local web page an author can annotate, and a JSON file an AI agent can read and act on.
 
 作者在网页上对着稿子划词写意见（像 Word 的边注）；代理人直接读同一份 `notes.json`，按条改稿、回写状态。Flask + 原生 JS，**无 npm、无构建、无云端依赖**。
@@ -113,4 +115,6 @@ examples/demo.md        演示用文稿
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 JiangXingChi
+
+可自由使用、修改、分发、商用；保留版权声明与许可证文本即可。

@@ -2,6 +2,7 @@
 name: "web-margin-notes"
 description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、annotate a markdown draft with margin comments、read annotation feedback and revise。"
 version: 4
+license: MIT
 created: "2026-11-02"
 updated: "2026-11-02"
 ---
