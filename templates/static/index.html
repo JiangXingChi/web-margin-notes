@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>批注</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/s/style.css?v=4">
+</head>
+<body>
+<header class="topbar">
+  <div class="title">
+    <b id="doc-title">初稿批注</b>
+    <span class="meta" id="doc-meta"></span>
+  </div>
+  <div class="tools">
+    <div class="chips" id="filters">
+      <button class="chip on" data-f="open">待处理 <i id="c-open">0</i></button>
+      <button class="chip" data-f="all">全部 <i id="c-all">0</i></button>
+      <button class="chip" data-f="done">已处理 <i id="c-done">0</i></button>
+      <button class="chip" data-f="orphan">失效 <i id="c-orphan">0</i></button>
+    </div>
+    <button class="btn" id="btn-mode" title="切换全文 / 逐段（f）">逐段</button>
+    <button class="btn" id="btn-general" title="给整篇稿子提意见">＋ 全文意见</button>
+    <button class="btn" id="btn-export" title="写入 export/意见清单.md">导出清单</button>
+    <button class="btn" id="btn-copy" title="复制全部意见（可粘给代理）">复制全部</button>
+  </div>
+</header>
+<div class="mapbar">
+  <div class="map" id="map"></div>
+  <div class="mapinfo" id="mapinfo"></div>
+</div>
+
+<main class="layout">
+  <article class="doc" id="doc"></article>
+  <aside class="margin" id="margin"></aside>
+</main>
+
+<div class="focusbar" id="focusbar" hidden>
+  <button class="btn" id="f-prev" title="上一段（k / ↑）">‹</button>
+  <span class="fpos" id="f-pos">P1 / 24</span>
+  <button class="btn" id="f-next" title="下一段（j / ↓）">›</button>
+  <span class="fdiv"></span>
+  <button class="btn" id="f-note" title="下一条批注（n）">下一条批注</button>
+  <button class="btn" id="f-unread" title="跳到第一个未读段">未读</button>
+  <label class="fctx"><input type="checkbox" id="f-ctx"> 带上下段</label>
+</div>
+
+<div class="pill" id="pill" hidden>＋ 批注</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="/s/app.js?v=4"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+ "manuscript": "/path/to/your.md",
+ "port": 5178,
+ "app_title": "初稿批注",
+ "ref_head": "## 参考文献"
+}

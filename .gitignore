@@ -1,0 +1,6 @@
+/data/
+/export/
+/tmp/
+*.log
+__pycache__/
+.DS_Store
