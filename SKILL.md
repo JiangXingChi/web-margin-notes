@@ -1,10 +1,10 @@
 ---
 name: "web-margin-notes"
 description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、annotate a markdown draft with margin comments、read annotation feedback and revise。"
-version: 5
+version: 7.3
 license: MIT
 created: "2026-11-02"
-updated: "2026-11-04"
+updated: "2026-11-05"
 ---
 ## When to Use
 
@@ -24,19 +24,33 @@ updated: "2026-11-04"
 2. 生成实例：`bash scripts/scaffold.sh <目标目录> <文稿.md> [端口]`。脚本复制 `templates/`、写好 `data/config.json` 与空的 `data/notes.json`，不覆盖已存在目录。
 3. 起服务：`cd <目标目录> && bash start.sh`（或 `setsid python app.py > tmp.log 2>&1 &`）。只监听 127.0.0.1。
 4. 自测：`python3 scripts/verify.py http://127.0.0.1:<端口>`，应输出「全部通过」（段落数、字数、锚点状态、边注对齐、无残留 `**`、无 JS 报错）。
-5. 交付给作者，说明操作：划词 →「＋批注」→ `Ctrl+Enter`；点段号提段落意见；顶栏「＋ 全文意见」提整篇意见。**默认就是逐段模式**：打开只显示当前这一段和它自己的批注（默认不带上下段，可用底栏勾选临时带上下文），`j`/`k`/`↑↓` 翻段，`n`/`p` 跳到下/上一条批注，顶栏「全文」/`f` 切回全篇（选择记在 localStorage）；顶栏下的一排格子是段落地图（橙=有批注、灰=已读、绿=已改），点格跳段。正文高亮：待处理为橙黄，已改为浅绿，与段落地图一致。
+5. 交付给作者，说明操作：划词 →「＋批注」→ `Ctrl+Enter`；点段号提段落意见；顶栏「＋ 全文意见」提整篇意见。**图可直接批**：`![](path)` 段落渲染为图片，点图或「＋ 图意见」建段落级意见（`quote=""`）；`|` 表格渲染为三线表，单元格内仍可划词。**默认就是逐段模式**：打开只显示当前这一段和它自己的批注（默认不带上下段，可用底栏勾选临时带上下文），`j`/`k`/`↑↓` 翻段，`n`/`p` 跳到下/上一条批注，顶栏「全文」/`f` 切回全篇（选择记在 localStorage）；顶栏下的一排格子是段落地图（橙=有批注、灰=已读、绿=已改），点格跳段。正文高亮：**待处理＝字色改橙并加粗（不铺底、不划线）**，**已改＝浅绿背景**，两种状态各占一个视觉通道；段落地图同为橙／绿。**批注卡片就地插在「被批注那一句」的下一行**（v7 起不再有右侧边注列），编辑器也在划词处浮出。
 6. 读批注：`python3 scripts/read_notes.py <实例>/data/notes.json`（默认只出 `status=open`，按段排序；`--all` 含已处理，`--json` 原样输出）。
 7. 改稿：只改文稿源文件；改完跑该项目自己的构建（如 docx/pdf 重建），再把处理过的条目 `status` 置 `done`，并写 `reply` 一句话说明"改成了什么"——`POST /api/notes/<id>/status {"status":"done","reply":"…"}`。页面会用绿框显示这句，作者回看时就知道改动落在哪。
 8. 回环：作者 `F5` 刷新，批注按 `quote + prefix + suffix` 自动重定位；`orphan` 条目必须人工确认，不许静默丢弃。
 
 ## Pitfalls
 
+- **图片路径相对 `media_root`**：`![](figures/x.png)` 由 `/media/<path>` 供给，根目录取 `config.json` 的 `media_root`（默认是文稿所在目录）。文稿若是从 `sections/` 合并到另一个目录的快照，`media_root` 必须指回源项目目录，否则图片 404。外部 http(s) 链接直接引用，不走本路由。
+- **图片/表格段不改 `text`**：只用 `figure`／`table` 标记交给前端渲染，段落文本保持原 markdown。若把 `![](a.png)` 删成空串，段号与偏移全乱，已有批注集体降级。
+- **表格渲染后必须反查偏移**：DOM 里没有 `|`，`ptext.textContent` 与原文不同。`selectionInfo()` 发现 `text` 在原 markdown 的该偏移处对不上时，用 `indexOf` 反查一次再算 prefix/suffix，否则引文写入即错位。
+- **orphan 批注不许画高亮**：`relocate()` 定位失败时 `offset` 常回落到 0，前端若照画，十几条失效批注会在段首叠成一大片绿，把新加的黄批注整片盖住，作者只会说「黄色看不见」。`highlightFragment()` 必须过滤 `anchor === "orphan"`，`scrollToAnchor()` 同时回退到段落。
+- **两种状态不要共用背景色**：待处理若也用底色，会和已改的绿底在同一段里互相遮盖，作者分不清哪条还没处理。约定：待处理＝`color:var(--accent)` ＋加粗，已改＝`background:var(--hl-done)`；`.hl.on` 只做加深，不换通道。
+- **嵌套 `<mark>` 的层次别排反**：`renderRich()` 逐个包裹，最后包的在最外层（父元素），父元素的背景画在子元素下面。想「范围小的批注颜色压在上面」，就得按范围**升序**包；同范围时让 `open` 先包，新批注才不会被旧的 `done` 盖住。
+- **小标题要在解析期就去 `#`**：`## 摘要` 若原样进段落，页面会把 `##` 当正文显示，选区和偏移也会带上井号。`parse_doc()` 先剥 `^#{1,6}\s+` 再算 `text`，级别放 `head` 字段给前端做字号。
 - **Markdown 粗体必须先去标记**：`**词**` 原样渲染会露星号，且 DOM 偏移与引文对不上。`app.py` 的 `strip_bold()` 返回纯文本 + `bold` 区间，前后端统一用去标记文本算偏移。
 - **别用 `data-top=1e9` 表示"排到最底"**：浏览器会钳制成 33554432px，页面高度爆炸。`layoutCards()` 按 `(是否全文意见, top)` 两级排序。
 - **编辑批注时传 `para_anchor`/`quote_anchor`**，不能传 `para`/`quote`——后者是原始字段，传错会把句级批注写成全文批注。
 - **改完服务代码必须重启**：`fuser -k <端口>/tcp` 后再起，否则测到的还是旧逻辑；静态文件走缓存时 `Ctrl+Shift+R`。
 - **字数口径要说明**：`/api/doc` 的 `chars` 不含标题行，构建脚本打印的含标题，差值等于标题字数，属正常。
 - **重叠批注要嵌套渲染**：同段两条批注的区间可能相交，`renderRich()` 先按边界切段、每条覆盖该段的批注由外到内嵌套 `<mark>`，否则后一条没有高亮、用户找不到锚点。
+- **同一个词一段里出现多次时，`relocate()` 不能只用 `text.find(quote)`**：那样所有「候选」都被吸到第一次出现的位置，前端算得再对也没用。必须「存下的 offset → 前后文 prefix/suffix → find() 兜底」三级消歧（`_find_quote()`）。
+- **段落被行内卡片切段后，选区偏移要按整段累加**：`selectionInfo()` 若用 `ptext.textContent` 取长度，偏移只是当前片段的，写进库就整体错位，卡片自然跑到别的句子下面。要遍历该段所有 `.ptext` 依次累加。
+- **改锚点不能走 `/api/notes` 的编辑分支**：带 `id` 的 POST 只更新 `text`/`tags`，`offset`/`prefix`/`suffix` 一律忽略。要挪锚点只能直接改 `data/notes.json`。
+- **表格段与标题段不能按句切**：`p.table`／`p.head` 走整块渲染分支，若只画文本不补卡片，作者在这些段落里划的词就会「点了保存却什么都没出现」。整块渲染完必须把该段所有 inline 批注依次 append 上去。
+- **偏移越界的高亮要夹紧不能丢**：`offset + quote.length > 段长` 时若直接 `filter` 掉，卡片会连高亮一起消失。先 `e = min(e, 段长)` 再判断，并在段末加一道「未渲染兜底」，保证任何可见批注至少以卡片形式出现一次。
+- **切点取「最近的分隔符」而不是「句末」**：只按句号切，标句中一个词时卡片会落到两三行之外，作者会说「不在对应句子下面」。现用 `cutPoint()`：在引文之后找第一个 `，、；：`，比句末近就用它，整句没有分隔符才退到 `sentenceEnd()`。代价是卡片插进句子中间、后文另起一段，这是为了贴近被批注的词。
+- **遗留的 `!important` 会压过内联样式**：老版响应式规则里的 `.card{position:static!important}` 会让 `element.style.position="fixed"` 失效（`cssText` 看着对，`getComputedStyle` 仍是 static），表现是编辑器跑到页面最底部。改版式时先清掉旧媒体查询里的 `!important`。
 - **别把"下移"判成错位**：两条批注靠得近时后一条必然被推下去，判据应是"卡片不得高于锚点"。
 - **grid 拉伸会让高度自锁**：`.layout` 是两列 grid，边注列 `min-height` 撑高后，正文列被 stretch 到同高；若下一次又用 `docEl.offsetHeight` 算 `min-height`，就会一层层放大（实测 970 → 4413px）。修法：`layoutCards()` 先把 `marginEl.style.minHeight = "0px"` 再测量。
 - **默认视图要是逐段**：作者面对长稿打开就看见 24 段会直接放弃；`state.mode` 默认 `focus`，末次选择写 `localStorage`。
@@ -46,8 +60,12 @@ updated: "2026-11-04"
 ## Verification
 
 - `scripts/verify.py <base_url>` 退出码 0 且打印「全部通过」。
+- 图片可见：`curl -s -o /dev/null -w '%{http_code}' <base>/media/<fig>` 得 200；`<base>/media/../app.py` 得 404。
+- 点图建的意见可落盘：POST `/api/notes` 带 `quote:""`、`para`=图段号后，`/api/doc` 回 `anchor=exact`。
 - 全文模式段落数与 `/api/doc` 一致；逐段模式只渲染 1 段（勾"带上下段"时 ≤3）；正文无 `**` 残留；参考文献区可折叠（逐段模式不显示）。
 - 建一条批注 → `F5` 仍在；杀进程重启 → 仍在（`data/notes.json` 持久）。
+- 图段：`curl -s -o /dev/null -w "%{http_code}" <base>/media/<fig>` 得 200，`<base>/media/../app.py` 得 404；`/api/doc` 的 `figure`／`table` 段数与文稿里的 `![](...)`／`|` 表一致。
+- 点图建的意见能落盘：POST 带 `quote:""`、`para`=图段号后，`/api/doc` 回 `anchor=exact`。
 - 手工改动文稿约 10% 文字后刷新：未受影响批注仍精确对齐；轻微改动标 `fuzzy`；删掉/乱改标 `orphan`；不静默丢失。
 - 边注卡片不得高于其锚点；相邻卡片不重叠（1280/1512/1920 三档）。**因避让前一条而下移是正常的**，`verify.py` 单列"避让下移"计数，别当错位。
 - 逐段模式（默认）：**只渲染当前段**（勾选"带上下段"才显示 ±1 段淡显），`j`/`k` 翻段，`n`/`p` 跳批注，底栏显示 `P# / N`；页面不滚动（scrollHeight ≈ 视口高）；段落地图与已读计数同步。
@@ -83,7 +101,8 @@ web-margin-notes/
             "docHash":"272347ec9618","createdAt":"…","updatedAt":"…"}]}
 ```
 
-- `para`：段落号（1 起）；`0` = 全文意见。
+- `para`：段落号（1 起）；`0` = 全文意见。图意见也是段落级（`quote` 为空，`para` 指向图片所在段）。
+- `/api/doc` 的每段另有 `media`（图引用，含 `src`／`alt`／`external`）、`figure`（纯图片段）、`table`（markdown 表格）三字段，供前端渲染，不参与锚点计算。
 - `quote`：选中的原文，空串表示整段/全文意见。
 - `prefix`/`suffix`：前后各 20 字。
 - `status`：`open` / `done`；`reply`：代理人写的改法；`doneAt`：完成时间。
