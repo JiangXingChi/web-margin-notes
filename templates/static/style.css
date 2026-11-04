@@ -1,11 +1,11 @@
 :root{
   --bg:#fbfaf7; --fg:#1f2328; --dim:#6b7280; --line:#e5e2dc;
-  --hl:#fff2b0; --hl-on:#ffe066; --card:#ffffff; --accent:#b45309;
+  --hl:#ffd08a; --hl-on:#ffb04d; --hl-done:#d9efdf; --card:#ffffff; --accent:#b45309;
   --orphan:#fdecea; --orphan-line:#e0a39c;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#16181c; --fg:#e8e6e3; --dim:#9aa1a9; --line:#2c3037;
-         --hl:#4a431c; --hl-on:#6b5f1d; --card:#1e2126; --accent:#e9a23b;
+         --hl:#5c3f14; --hl-on:#7d5a17; --hl-done:#1e3a26; --card:#1e2126; --accent:#e9a23b;
          --orphan:#3a2320; --orphan-line:#7a4b45; }
 }
 *{box-sizing:border-box}
@@ -49,7 +49,7 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .hl{background:var(--hl);border-radius:2px;padding:0;cursor:pointer}
 .hl.on{background:var(--hl-on)}
 .hl.fuzzy{outline:1px dashed var(--orphan-line)}
-.hl.done{background:color-mix(in srgb,var(--hl) 45%,transparent)}
+.hl.done{background:var(--hl-done)}
 .ppin{background:color-mix(in srgb,var(--accent) 12%,transparent);border-bottom:1px solid var(--accent)}
 
 /* 边注列 */
@@ -58,7 +58,8 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
   border-left:3px solid var(--accent);border-radius:8px;padding:9px 10px;
   box-shadow:0 1px 2px rgba(0,0,0,.05);transition:box-shadow .15s,border-color .15s}
 .card.on{box-shadow:0 6px 20px rgba(0,0,0,.12);border-color:var(--accent)}
-.card.done{opacity:.62}
+.card.done{opacity:.62;border-left-color:#16a34a}
+.card.done .quote em{background:var(--hl-done)}
 .card.orphan{border-left-color:var(--orphan-line);background:var(--orphan)}
 .card.empty{border-left-color:var(--line);opacity:.9}
 .card .head{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:11px;margin-bottom:4px}

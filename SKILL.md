@@ -1,10 +1,10 @@
 ---
 name: "web-margin-notes"
 description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、annotate a markdown draft with margin comments、read annotation feedback and revise。"
-version: 4
+version: 5
 license: MIT
 created: "2026-11-02"
-updated: "2026-11-02"
+updated: "2026-11-04"
 ---
 ## When to Use
 
@@ -24,7 +24,7 @@ updated: "2026-11-02"
 2. 生成实例：`bash scripts/scaffold.sh <目标目录> <文稿.md> [端口]`。脚本复制 `templates/`、写好 `data/config.json` 与空的 `data/notes.json`，不覆盖已存在目录。
 3. 起服务：`cd <目标目录> && bash start.sh`（或 `setsid python app.py > tmp.log 2>&1 &`）。只监听 127.0.0.1。
 4. 自测：`python3 scripts/verify.py http://127.0.0.1:<端口>`，应输出「全部通过」（段落数、字数、锚点状态、边注对齐、无残留 `**`、无 JS 报错）。
-5. 交付给作者，说明操作：划词 →「＋批注」→ `Ctrl+Enter`；点段号提段落意见；顶栏「＋ 全文意见」提整篇意见。**默认就是逐段模式**：打开只显示当前这一段和它自己的批注（默认不带上下段，可用底栏勾选临时带上下文），`j`/`k`/`↑↓` 翻段，`n`/`p` 跳到下/上一条批注，顶栏「全文」/`f` 切回全篇（选择记在 localStorage）；顶栏下的一排格子是段落地图（橙=有批注、灰=已读、绿=已改），点格跳段。
+5. 交付给作者，说明操作：划词 →「＋批注」→ `Ctrl+Enter`；点段号提段落意见；顶栏「＋ 全文意见」提整篇意见。**默认就是逐段模式**：打开只显示当前这一段和它自己的批注（默认不带上下段，可用底栏勾选临时带上下文），`j`/`k`/`↑↓` 翻段，`n`/`p` 跳到下/上一条批注，顶栏「全文」/`f` 切回全篇（选择记在 localStorage）；顶栏下的一排格子是段落地图（橙=有批注、灰=已读、绿=已改），点格跳段。正文高亮：待处理为橙黄，已改为浅绿，与段落地图一致。
 6. 读批注：`python3 scripts/read_notes.py <实例>/data/notes.json`（默认只出 `status=open`，按段排序；`--all` 含已处理，`--json` 原样输出）。
 7. 改稿：只改文稿源文件；改完跑该项目自己的构建（如 docx/pdf 重建），再把处理过的条目 `status` 置 `done`，并写 `reply` 一句话说明"改成了什么"——`POST /api/notes/<id>/status {"status":"done","reply":"…"}`。页面会用绿框显示这句，作者回看时就知道改动落在哪。
 8. 回环：作者 `F5` 刷新，批注按 `quote + prefix + suffix` 自动重定位；`orphan` 条目必须人工确认，不许静默丢弃。

@@ -15,6 +15,7 @@ Word-style margin comments for any Markdown draft — as a local web page an aut
 - 划词批注，边注卡片与正文像素级对齐；
 - 默认**逐段模式**：一屏只有当前段和它自己的批注，`j`/`k` 翻段；
 - 段落地图：橙=有批注、灰=已读、绿=已改，点格跳段；
+- 高亮配色：橙黄=待处理，浅绿=已改（与段落地图一致，便于区分本轮新批注与上轮改动）；
 - 批注锚定用 `quote + prefix + suffix + 段号`，**改稿后仍能定位**（exact → relocated → fuzzy → orphan 四级回退）；
 - 代理人改完写一句"改法"，页面绿框显示，回看即知改动落在哪。
 
