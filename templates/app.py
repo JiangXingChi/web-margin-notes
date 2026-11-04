@@ -77,9 +77,30 @@ def strip_bold(raw):
     return "".join(out), spans
 
 
+def _media_of(raw, text):
+    """抽出本段里的图片引用。路径相对文稿所在目录，由 /media/<path> 提供。"""
+    out = []
+    for m in re.finditer(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)", raw):
+        src = m.group(2).strip()
+        if src.startswith(("http://", "https://", "data:")):
+            out.append({"src": src, "alt": m.group(1), "external": True})
+        else:
+            out.append({"src": src, "alt": m.group(1), "external": False})
+    # 去掉图片引用后所剩无几，就当这一段是图
+    only = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)", "", text).strip()
+    return out, not only
+
+
+def _is_table(text):
+    """连续两行以上以 | 开头即当表格。"""
+    rows = [l for l in text.split("\n") if l.strip().startswith("|")]
+    return len(rows) >= 2
+
+
 def parse_doc():
     """切段：首行当标题，按空行分段；ref_head 之后的内容作为文献区单独返回。
-    段落文本去掉 ** 标记（粗体位置另给），保证正文/前端的字符偏移一致。"""
+    段落文本去掉 ** 标记（粗体位置另给），保证正文/前端的字符偏移一致。
+    图片与表格只加标记，不动 text，否则锚点偏移会对不上。"""
     cfg = load_cfg()
     path = cfg["manuscript"]
     ref_head = cfg.get("ref_head", DEFAULT_REF_HEAD)
@@ -95,12 +116,23 @@ def parse_doc():
     cjk = lambda s: len(re.findall(r"[\u4e00-\u9fff]", s))
     paras = []
     for n, raw in enumerate(raw_paras):
-        text, bold = strip_bold(raw)
-        paras.append({"i": n + 1, "text": text, "bold": bold, "chars": cjk(text)})
+        # 小标题去掉 # 号再算文本，正文/前端偏移才一致；级别单独给前端做样式
+        head, body_raw = 0, raw
+        mh = re.match(r"^(#{1,6})\s+", raw)
+        if mh:
+            head = len(mh.group(1))
+            body_raw = raw[mh.end():]
+        text, bold = strip_bold(body_raw)
+        media, fig_only = _media_of(body_raw, text)
+        paras.append({"i": n + 1, "text": text, "bold": bold, "chars": cjk(text),
+                      "head": head,
+                      "media": media, "figure": bool(fig_only and media),
+                      "table": _is_table(text)})
     refs = [r.strip() for r in re.split(r"\n\s*\n", refs_raw) if r.strip()]
     return {
         "title": title,
         "path": path,
+        "media_root": os.path.dirname(os.path.abspath(path)),
         "hash": hashlib.sha1("\n\n".join(p["text"] for p in paras).encode("utf-8")).hexdigest()[:12],
         "paras": paras,
         "refs": refs,
@@ -144,6 +176,28 @@ def _fuzzy(text, quote):
     return idx[start_n], idx[end_n - 1] + 1, sim
 
 
+def _find_quote(text, quote, offset, prefix, suffix):
+    """同一段里同一个词可能出现多次。先认存下的偏移，再用前后文消歧，
+    最后才退到 find()，否则「候选」这类词全被吸到第一次出现的位置。"""
+    off = int(offset or 0)
+    if 0 <= off <= len(text) - len(quote) and text[off:off + len(quote)] == quote:
+        return off
+    if prefix or suffix:
+        first = -1
+        i = text.find(quote)
+        while i >= 0:
+            head_ok = not prefix or text[max(0, i - len(prefix)):i] == prefix
+            tail_ok = not suffix or text[i + len(quote):i + len(quote) + len(suffix)] == suffix
+            if head_ok and tail_ok:
+                return i
+            if first < 0:
+                first = i
+            i = text.find(quote, i + 1)
+        if first >= 0:
+            return first
+    return text.find(quote)
+
+
 def relocate(note, paras):
     """返回 (para_no, offset, quote, status)。status: exact/relocated/fuzzy/orphan"""
     quote = note.get("quote", "")
@@ -159,7 +213,7 @@ def relocate(note, paras):
         return para_no, 0, "", "orphan"
 
     if text is not None:
-        p = text.find(quote)
+        p = _find_quote(text, quote, note.get("offset"), note.get("prefix"), note.get("suffix"))
         if p >= 0:
             same = note.get("docHash") == note.get("_hash")
             return para_no, p, quote, "exact" if same else "relocated"
@@ -210,6 +264,22 @@ def no_cache(resp):
 @app.get("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
+
+
+def _media_root():
+    """ config.json 可用 media_root 指定图片根目录（相对路径按实例目录解），
+    默认取文稿所在目录。"""
+    cfg = load_cfg()
+    root = cfg.get("media_root") or os.path.dirname(os.path.abspath(cfg["manuscript"]))
+    if not os.path.isabs(root):
+        root = os.path.normpath(os.path.join(BASE, root))
+    return root
+
+
+@app.get("/media/<path:p>")
+def media(p):
+    """图片只读，send_from_directory 自身已挡 ../ 越界。"""
+    return send_from_directory(_media_root(), p, max_age=0)
 
 
 @app.get("/api/health")

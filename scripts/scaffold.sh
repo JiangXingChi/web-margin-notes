@@ -23,9 +23,10 @@ cp -r "$src/static" "$src/app.py" "$src/start.sh" "$dst/"
 chmod +x "$dst/start.sh"
 
 python3 - "$dst/data/config.json" "$dst/data/notes.json" "$md" "$port" <<'PY'
-import json, sys
+import json, sys, os
 cfg_path, notes_path, md, port = sys.argv[1:5]
-cfg = {"manuscript": md, "port": int(port), "app_title": "初稿批注", "ref_head": "## 参考文献"}
+cfg = {"manuscript": md, "port": int(port), "app_title": "初稿批注", "ref_head": "## 参考文献",
+       "media_root": os.path.dirname(os.path.abspath(md))}
 json.dump(cfg, open(cfg_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 json.dump({"doc": md, "version": 1, "notes": []}, open(notes_path, "w", encoding="utf-8"),
           ensure_ascii=False, indent=1)

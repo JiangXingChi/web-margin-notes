@@ -130,6 +130,61 @@ function esc(s) {
   return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 }
 
+/* markdown 表格转 <table>；纯展示，选区偏移按原 text 反查 */
+function tableEl(text) {
+  const rows = text.split("\n").filter((l) => l.trim().startsWith("|"));
+  const cells = (l) => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+  const t = document.createElement("table");
+  t.className = "mdtable";
+  rows.forEach((line) => {
+    if (/^[\s:|-]+$/.test(line.trim().replace(/^\|/, "").replace(/\|$/, ""))) return;
+    const tr = document.createElement("tr");
+    for (const c of cells(line)) {
+      const td = document.createElement(t.querySelector("tr") ? "td" : "th");
+      td.textContent = c;
+      tr.appendChild(td);
+    }
+    t.appendChild(tr);
+  });
+  return t;
+}
+
+/* ------------------------------------------------------------ 行内批注 */
+/* 批注卡片紧跟在「被批注那句」的下一行，不再放到右侧边注列 */
+function sentenceEnd(text, pos) {
+  const re = /[。！？；\n]/g;
+  re.lastIndex = Math.max(0, pos - 1);
+  const r = re.exec(text);
+  return r ? r.index + 1 : text.length;
+}
+
+/* 卡片插哪：优先贴着最近的逗号/顿号/分号（离被批注的词最近），
+   整句内没有分隔符时才退到句末。 */
+function cutPoint(text, pos) {
+  const end = sentenceEnd(text, pos);
+  const re = /[，、；：]/g;
+  re.lastIndex = Math.max(0, pos);
+  const m = re.exec(text);
+  return m && m.index < end ? m.index + 1 : end;
+}
+
+function renderSeg(text, bold, marks, from, to) {
+  const seg = text.slice(from, to);
+  const bs = bold
+    .map(([a, b]) => [Math.max(0, a - from), Math.min(seg.length, b - from)])
+    .filter(([a, b]) => b > a);
+  const ms = marks
+    .map((m) => ({ ...m, s: Math.max(0, m.s - from), e: Math.min(seg.length, m.e - from) }))
+    .filter((m) => m.e > m.s);
+  return renderRich(seg, bs, ms);
+}
+
+function inlineCard(n) {
+  const c = cardEl(n);
+  c.classList.add("inline");
+  return c;
+}
+
 /* ------------------------------------------------------------ 渲染正文 */
 function renderRich(text, bold, marks) {
   const cuts = new Set([0, text.length]);
@@ -142,9 +197,13 @@ function renderRich(text, bold, marks) {
     if (e <= s) continue;
     let node = document.createTextNode(text.slice(s, e));
     // 允许区间重叠：外层先包（范围大的在外），内层后包，两条批注都能点
+    // 嵌套时最内层画在最上面：小范围先包（成为子元素），大范围后包（成为父元素）。
+    // 同范围时 open 优先，保证新加的黄批注不会被旧的绿批注盖住。
     const covering = marks
       .filter((m) => s >= m.s && e <= m.e)
-      .sort((a, b) => (b.e - b.s) - (a.e - a.s));
+      .sort((a, b) =>
+        (a.e - a.s) - (b.e - b.s) ||
+        ((a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0)));
     for (const mk of covering) {
       const el = document.createElement("mark");
       el.className = "hl" + (mk.anchor === "fuzzy" ? " fuzzy" : "") + (mk.status === "done" ? " done" : "");
@@ -165,7 +224,8 @@ function renderRich(text, bold, marks) {
 
 function highlightFragment(text, paraNo, bold) {
   const marks = state.notes
-    .filter((n) => n.para_anchor === paraNo && n.quote_anchor)
+    // orphan 的 offset 不可信（常为 0），照画会在段首糊成一片，压住别的高亮
+    .filter((n) => n.para_anchor === paraNo && n.quote_anchor && n.anchor !== "orphan")
     .map((n) => ({ n, s: n.offset, e: n.offset + n.quote_anchor.length }))
     .filter((x) => x.s >= 0 && x.e <= text.length && x.e > x.s)
     .sort((a, b) => a.s - b.s);
@@ -180,9 +240,10 @@ function renderDoc() {
     ? state.doc.paras.filter((p) => p.i === state.cur ||
         (state.showCtx && Math.abs(p.i - state.cur) === 1))
     : state.doc.paras;
+  let shownNotes = 0;
   for (const p of list) {
     const isCur = state.mode !== "focus" || p.i === state.cur;
-    const el = document.createElement("p");
+    const el = document.createElement("div");     // div：内部要插行内卡片
     el.className = "para" + (state.mode === "focus" ? (isCur ? " cur" : " ctx") : "");
     el.dataset.i = p.i;
     const no = document.createElement("span");
@@ -192,12 +253,102 @@ function renderDoc() {
     no.onclick = () => (state.mode === "focus" && !isCur
       ? gotoPara(p.i)
       : openComposer({ para: p.i, quote: "", prefix: "", suffix: "", offset: 0 }));
-    const tx = document.createElement("span");
-    tx.className = "ptext";
-    tx.appendChild(isCur ? highlightFragment(p.text, p.i, p.bold) : document.createTextNode(p.text));
-    el.append(no, tx);
+    el.append(no);
+
+    const mine = state.notes.filter((n) => visible(n) && n.para_anchor === p.i);
+    const rendered = new Set();
+    const inline = mine.filter((n) => n.quote_anchor && n.anchor !== "orphan");
+    const whole = mine.filter((n) => !n.quote_anchor || n.anchor === "orphan");
+
+    if (p.figure) {
+      const tx = document.createElement("span");
+      tx.className = "ptext";
+      const box = document.createElement("div");
+      box.className = "figbox";
+      for (const m of p.media) {
+        const img = document.createElement("img");
+        img.className = "fig";
+        img.src = m.external ? m.src : "/media/" + m.src.split("/").map(encodeURIComponent).join("/");
+        img.alt = m.alt || "";
+        img.loading = "lazy";
+        img.onclick = (e) => { e.stopPropagation(); openComposer({ para: p.i, quote: "", prefix: "", suffix: "", offset: 0 }); };
+        box.appendChild(img);
+      }
+      const cnt = noteCount(p.i);
+      const btn = document.createElement("button");
+      btn.className = "figbtn";
+      btn.textContent = cnt ? `图意见 ${cnt} 条｜再加` : "＋ 图意见";
+      btn.onclick = (e) => { e.stopPropagation(); openComposer({ para: p.i, quote: "", prefix: "", suffix: "", offset: 0 }); };
+      box.appendChild(btn);
+      if (!isCur) box.onclick = () => gotoPara(p.i);
+      tx.appendChild(box);
+      el.append(tx);
+    } else if (p.head || p.table) {
+      const tx = document.createElement("span");
+      tx.className = "ptext";
+      if (p.head) tx.classList.add("hd" + p.head);
+      if (p.table) tx.appendChild(isCur ? tableEl(p.text) : document.createTextNode(p.text));
+      else tx.appendChild(isCur ? highlightFragment(p.text, p.i, p.bold) : document.createTextNode(p.text));
+      el.append(tx);
+      // 表格/标题不能按句切开，卡片统一放在整块之后（否则这些段落里的批注会整条丢失）
+      for (const n of inline) { el.append(inlineCard(n)); rendered.add(n.id); shownNotes++; }
+    } else if (!isCur) {
+      const tx = document.createElement("span");
+      tx.className = "ptext";
+      tx.textContent = p.text;
+      el.append(tx);
+    } else {
+      // 按「被批注句」的句末切段，卡片插在切点之后
+      const marks = inline.map((n) => ({
+        n, s: n.offset, e: n.offset + (n.quote_anchor || "").length,
+        id: n.id, anchor: n.anchor, status: n.status, text: n.text,
+      })).map((m) => ({ ...m, e: Math.min(m.e, p.text.length) }))
+        .filter((m) => m.e > m.s && m.s >= 0);
+      const groups = new Map();
+      for (const m of marks) {
+        const cut = cutPoint(p.text, m.e);
+        if (!groups.has(cut)) groups.set(cut, []);
+        groups.get(cut).push(m.n);
+      }
+      const cuts = [...groups.keys()].sort((a, b) => a - b);
+      let cursor = 0;
+      for (const cut of cuts) {
+        const sp = document.createElement("span");
+        sp.className = "ptext";
+        sp.appendChild(renderSeg(p.text, p.bold || [], marks, cursor, cut));
+        el.append(sp);
+        for (const n of groups.get(cut)) { el.append(inlineCard(n)); rendered.add(n.id); shownNotes++; }
+        cursor = cut;
+      }
+      if (cursor < p.text.length || !cuts.length) {
+        const sp = document.createElement("span");
+        sp.className = "ptext";
+        sp.appendChild(cursor ? renderSeg(p.text, p.bold || [], marks, cursor, p.text.length)
+                              : highlightFragment(p.text, p.i, p.bold));
+        el.append(sp);
+      }
+    }
+
+    // 兜底：偏移不可信、又没落进上面任何分支的批注，仍要显示出来
+    for (const n of mine) {
+      if (rendered.has(n.id) || whole.includes(n)) continue;
+      el.append(inlineCard(n)); rendered.add(n.id); shownNotes++;
+    }
+    for (const n of whole) { el.append(inlineCard(n)); rendered.add(n.id); shownNotes++; }
     docEl.appendChild(el);
   }
+
+  // 全文意见：放在正文最末
+  const generals = state.notes.filter((n) => visible(n) && !(n.para_anchor > 0));
+  for (const n of generals) { docEl.appendChild(inlineCard(n)); shownNotes++; }
+
+  if (state.mode === "focus" && !shownNotes) {
+    const empty = document.createElement("div");
+    empty.className = "card empty inline";
+    empty.innerHTML = `<div class="body" style="color:var(--dim)">本段还没有批注。划词后按 <kbd>Ctrl+K</kbd> 或点「＋批注」。</div>`;
+    docEl.appendChild(empty);
+  }
+
   if (state.mode !== "focus" && (state.doc.refs || []).length) {
     const d = document.createElement("details");
     d.className = "refs";
@@ -259,67 +410,20 @@ function cardEl(n) {
   return c;
 }
 
-function renderCards() {
-  $$(".card", marginEl).forEach((c) => c.remove());
-  const shown = state.notes.filter(visible);
-  let added = 0;
-  for (const n of shown) {
-    if (state.mode === "focus" && n.para_anchor > 0 && n.para_anchor !== state.cur && n.anchor !== "orphan") continue;
-    marginEl.appendChild(cardEl(n));
-    added++;
-  }
-  if (state.mode === "focus" && !added) {
-    const empty = document.createElement("div");
-    empty.className = "card empty";
-    empty.innerHTML = `<div class="body" style="color:var(--dim)">本段还没有批注。划词后按 <kbd>Ctrl+K</kbd> 或点「＋批注」。</div>`;
-    marginEl.appendChild(empty);
-  }
-  layoutCards();
-}
+function renderCards() { /* 行内批注：卡片随 renderDoc 一起生成 */ }
 
-function layoutCards() {
-  marginEl.style.minHeight = "0px";      // 先归零，避免上一次的 min-height 把 grid 行撑高后回灌
-  const mr = marginEl.getBoundingClientRect();
-  const items = [];
-  for (const c of $$(".card", marginEl)) {
-    const n = state.notes.find((x) => x.id === c.dataset.id);
-    if (!n) {                          // 编辑器等临时卡片：用自己的定位
-      items.push({ c, top: parseFloat(c.style.top) || 0, general: false });
-      continue;
-    }
-    let top = null;
-    if (n.para_anchor > 0 && n.quote_anchor) {
-      const m = $(`mark[data-id="${n.id}"]`, docEl);
-      if (m) top = m.getBoundingClientRect().top - mr.top;
-    }
-    if (top === null && n.para_anchor > 0) {
-      const p = $(`.para[data-i="${n.para_anchor}"]`, docEl);
-      if (p) top = p.getBoundingClientRect().top - mr.top;
-    }
-    const general = !(n.para_anchor > 0);
-    items.push({ c, top: top === null ? 0 : Math.max(0, Math.round(top)), general });
-  }
-  items.sort((a, b) => (a.general - b.general) || (a.top - b.top));
-  let y = 0;
-  for (const it of items) {
-    const t = Math.max(it.top, y);
-    it.c.style.top = t + "px";
-    y = t + it.c.offsetHeight + 8;
-  }
-  const docH = docEl.getBoundingClientRect().height;
-  marginEl.style.minHeight = Math.min(Math.max(y + 20, docH), 200000) + "px";
-}
+function layoutCards() { /* 行内批注：不再需要像素级对齐 */ }
 
 /* ------------------------------------------------------------ 交互 */
 function scrollToAnchor(n) {
-  const t = n.quote_anchor
+  const t = (n.quote_anchor && n.anchor !== "orphan")
     ? $(`mark[data-id="${n.id}"]`, docEl)
     : $(`.para[data-i="${n.para_anchor}"]`, docEl);
   if (t) t.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 function focusCard(id) {
   $$(".hl", docEl).forEach((m) => m.classList.toggle("on", m.dataset.id === id));
-  $$(".card", marginEl).forEach((c) => c.classList.toggle("on", c.dataset.id === id));
+  $$(".card", docEl).forEach((c) => c.classList.toggle("on", c.dataset.id === id));
 }
 
 async function setStatus(n) {
@@ -343,28 +447,49 @@ function selectionInfo() {
   const range = sel.getRangeAt(0);
   const ptext = range.startContainer.parentElement?.closest(".ptext");
   if (!ptext) return null;
-  const paraNo = +ptext.closest(".para").dataset.i;
-  const pre = document.createRange();
-  pre.selectNodeContents(ptext);
-  pre.setEnd(range.startContainer, range.startOffset);
-  const startOff = pre.toString().length;
-  const full = ptext.textContent;
-  // 选区若跨出本段，只取本段内那部分（否则引文在段内找不到，锚点必然降级）
+  const paraEl = ptext.closest(".para");
+  if (!paraEl) return null;
+  const paraNo = +paraEl.dataset.i;
+  // 段落被行内卡片切成多个 .ptext，偏移必须按「整段」累加，不能只看当前片段
+  const segs = Array.from(paraEl.querySelectorAll(".ptext")).filter((s) => s.isConnected);
+  const full = segs.map((s) => s.textContent).join("");
+  const offsetIn = (node, off) => {
+    let acc = 0;
+    for (const s of segs) {
+      if (s.contains(node)) {
+        const r = document.createRange();
+        r.selectNodeContents(s);
+        r.setEnd(node, off);
+        return acc + r.toString().length;
+      }
+      acc += s.textContent.length;
+    }
+    return acc;
+  };
+  let startOff = offsetIn(range.startContainer, range.startOffset);
+  // 选区若跨段，只取本段内那部分（否则引文在段内找不到，锚点必然降级）
   let endOff = full.length;
-  if (ptext.contains(range.endContainer)) {
-    const post = document.createRange();
-    post.selectNodeContents(ptext);
-    post.setStart(range.endContainer, range.endOffset);
-    endOff = full.length - post.toString().length;
+  if (paraEl.contains(range.endContainer)) {
+    endOff = offsetIn(range.endContainer, range.endOffset);
   }
-  const text = full.slice(startOff, Math.max(startOff, endOff));
+  let text = full.slice(Math.min(startOff, endOff), Math.max(startOff, endOff));
   if (!text.trim()) return null;
+  let off = Math.min(startOff, endOff);
+  // 表格渲染后 DOM 文本与原文不同（少了竖线），偏移会偏：
+  // 从记录下的偏移附近往后找，别从段首找，否则同词在前文时锚点会跳句。
+  const paraObj = state.doc.paras.find((x) => x.i === paraNo);
+  const raw = paraObj ? paraObj.text : full;
+  if (raw.slice(off, off + text.length) !== text) {
+    const near = raw.indexOf(text, Math.max(0, off - 30));
+    const k = near >= 0 ? near : raw.indexOf(text);
+    if (k >= 0) off = k;
+  }
   return {
     para: paraNo,
     quote: text,
-    prefix: full.slice(Math.max(0, startOff - 20), startOff),
-    suffix: full.slice(startOff + text.length, startOff + text.length + 20),
-    offset: startOff,
+    prefix: raw.slice(Math.max(0, off - 20), off),
+    suffix: raw.slice(off + text.length, off + text.length + 20),
+    offset: off,
     rect: range.getBoundingClientRect(),
   };
 }
@@ -406,7 +531,7 @@ function openComposer(anchor, editId = null) {
         <span class="hint">Ctrl+↵</span>
       </div>
     </div>`;
-  marginEl.appendChild(c);
+  document.body.appendChild(c);
   const ta = $("textarea", c);
   ta.value = n ? n.text : "";
   state.tags = n ? [...(n.tags || [])] : [];
@@ -420,21 +545,26 @@ function openComposer(anchor, editId = null) {
         : state.tags.filter((x) => x !== t);
     };
   });
-  // 定位：对齐锚点
-  const mr = marginEl.getBoundingClientRect();
-  let top = 0;
-  if (editId) {
-    const m = $(`mark[data-id="${editId}"]`, docEl) ||
-              $(`.para[data-i="${anchor.para}"]`, docEl);
-    if (m) top = m.getBoundingClientRect().top - mr.top;
-  } else if (anchor.rect) {
-    top = anchor.rect.top - mr.top;           // 新建：贴着刚刚划的那一行
-  } else if (anchor.para) {
-    const p = $(`.para[data-i="${anchor.para}"]`, docEl);
-    if (p) top = Math.max(0, p.getBoundingClientRect().top - mr.top);
+  // 定位：贴着被批注的那一行浮出（fixed，不占正文流）
+  let rect = anchor.rect || null;
+  if (!rect && editId) {
+    const m = $(`mark[data-id="${editId}"]`, docEl);
+    if (m) rect = m.getBoundingClientRect();
   }
-  c.style.top = Math.max(0, top) + "px";
-  layoutCards();
+  if (!rect && anchor.para) {
+    const p = $(`.para[data-i="${anchor.para}"]`, docEl);
+    if (p) rect = p.getBoundingClientRect();
+  }
+  const W = 380, H = 200;
+  const top = rect ? Math.min(window.innerHeight - 40, rect.bottom + 6)
+                   : window.innerHeight / 2 - H / 2;
+  const left = rect ? Math.max(12, Math.min(rect.left, window.innerWidth - W - 12))
+                    : window.innerWidth / 2 - W / 2;
+  c.style.position = "fixed";
+  c.style.width = W + "px";
+  c.style.left = left + "px";
+  c.style.top = Math.max(64, Math.min(top, window.innerHeight - H)) + "px";
+  c.style.zIndex = 90;
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
   ta.onkeydown = async (e) => {
@@ -549,7 +679,7 @@ document.addEventListener("keydown", (e) => {
       gotoPara(state.cur + (down ? 1 : -1));
       return;
     }
-    const cards = $$(".card", marginEl).filter((c) => c.offsetParent);
+    const cards = $$(".card.inline", docEl).filter((c) => c.offsetParent);
     if (!cards.length) return;
     const i = cards.findIndex((c) => c.classList.contains("on"));
     const next = cards[Math.min(cards.length - 1, Math.max(0, down ? i + 1 : i - 1))];
