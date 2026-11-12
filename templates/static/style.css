@@ -64,7 +64,8 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .card .head{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:11px;margin-bottom:4px}
 .card .who{font:11px ui-monospace,monospace}
 .card .quote{color:var(--dim);border-left:2px solid var(--line);padding-left:6px;margin:4px 0 6px;
-  font-size:12px;line-height:1.5;max-height:3.1em;overflow:hidden}
+  font-size:12px;line-height:1.5;max-height:3.1em;overflow:hidden;
+  overflow-wrap:anywhere;word-break:break-word}
 .card .quote em{font-style:normal;background:var(--hl);color:var(--fg)}
 .card .body{white-space:pre-wrap;line-height:1.6}
 .card .tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
@@ -96,6 +97,12 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
   padding:5px 11px;font:12px/1.2 system-ui,sans-serif;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.2)}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:90;
   background:#222;color:#fff;padding:9px 14px;border-radius:8px;font:12.5px system-ui,sans-serif}
+
+/* 行间公式（KaTeX，v7.8） */
+.mathsrc{display:none}
+.mathbox{overflow-x:auto;overflow-y:hidden;padding:2px 0;text-indent:0}
+.mathbox .katex-display{margin:.35em 0}
+.mathbox .katex{font-size:1.05em}
 
 /* 参考文献折叠区 */
 .refs{margin-top:28px;border-top:1px solid var(--line);padding-top:12px;color:var(--dim);font-size:12px;text-indent:0}

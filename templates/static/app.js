@@ -203,6 +203,13 @@ function toast(msg, ms = 2200) {
   clearTimeout(t._t);
   t._t = setTimeout(() => (t.hidden = true), ms);
 }
+/* 引文是整段公式时别把 TeX 原样塞进卡片 */
+function quoteLabel(q) {
+  const t = (q || "").trim();
+  if (/^\$\$[\s\S]*\$\$$/.test(t)) return "［公式］";
+  return t.slice(0, 120);
+}
+
 function esc(s) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -260,6 +267,32 @@ function inlineCard(n) {
   const c = cardEl(n);
   c.classList.add("inline");
   return c;
+}
+
+/* 整段只有行间公式（$$…$$）时，交给 KaTeX 画；原文放进隐藏的 .ptext，
+   锚点仍按原字符偏移计算，只是这一段不能划词（用段号提整段意见）。 */
+function isDisplayMath(text) {
+  if (!/\$\$[\s\S]+?\$\$/.test(text)) return false;
+  return text.replace(/\$\$[\s\S]+?\$\$/g, "").trim() === "";   // 去掉公式后没有别的字
+}
+
+function mathBox(text) {
+  const box = document.createElement("div");
+  box.className = "mathbox";
+  box.textContent = text;
+  const paint = () => {
+    if (window.renderMathInElement) {
+      try {
+        window.renderMathInElement(box, {
+          delimiters: [{ left: "$$", right: "$$", display: true },
+                       { left: "$", right: "$", display: false }],
+          throwOnError: false,
+        });
+      } catch (e) { /* 渲染失败就保留原文 */ }
+    }
+  };
+  paint();
+  return box;
 }
 
 /* ------------------------------------------------------------ 渲染正文 */
@@ -386,6 +419,13 @@ function renderDoc() {
       tx.className = "ptext";
       tx.textContent = p.text;
       el.append(tx);
+    } else if (isDisplayMath(p.text)) {
+      const src = document.createElement("span");     // 原文留作锚点基准，不显示
+      src.className = "ptext mathsrc";
+      src.textContent = p.text;
+      el.append(src);
+      el.append(mathBox(p.text));
+      for (const n of inline) { el.append(inlineCard(n)); rendered.add(n.id); shownNotes++; }
     } else {
       // 按「被批注句」的句末切段，卡片插在切点之后
       const marks = inline.map((n) => ({
@@ -488,7 +528,7 @@ function cardEl(n) {
         <button class="icon" data-a="del" title="删除" aria-label="删除">×</button>
       </span>
     </div>
-    ${quote ? `<div class="quote">「<em>${esc(quote)}</em>」</div>` : ""}
+    ${quote ? `<div class="quote">「<em>${esc(quoteLabel(quote))}</em>」</div>` : ""}
     ${n.anchor === "orphan" ? `<div class="orphan-note">⚠ 定位可能失效，请确认原文已改</div>` : ""}
     <div class="body">${esc(n.text)}</div>
     ${n.status === "done" && n.reply ? `<div class="reply"><b>改：</b>${esc(n.reply)}</div>` : ""}
@@ -549,7 +589,7 @@ function selectionInfo() {
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
   const range = sel.getRangeAt(0);
   const ptext = range.startContainer.parentElement?.closest(".ptext");
-  if (!ptext) return null;
+  if (!ptext || ptext.classList.contains("mathsrc")) return null;   // 公式段只支持整段意见
   const paraEl = ptext.closest(".para");
   if (!paraEl) return null;
   const paraNo = +paraEl.dataset.i;
@@ -626,7 +666,7 @@ function openComposer(anchor, editId = null) {
   c.innerHTML = `
     <div class="head"><span class="who">${anchor.para ? "P" + anchor.para : "全文"}</span>
       <span>${anchor.quote ? "· 引文" : `· ${anchor.para ? "整段" : "全文"}`}</span></div>
-    ${anchor.quote ? `<div class="quote">「<em>${esc(anchor.quote.slice(0, 80))}</em>」</div>` : ""}
+    ${anchor.quote ? `<div class="quote">「<em>${esc(quoteLabel(anchor.quote))}</em>」</div>` : ""}
     <div class="editor">
       <textarea placeholder="写意见…（Ctrl+Enter 保存，Esc 取消）"></textarea>
       <div class="row">

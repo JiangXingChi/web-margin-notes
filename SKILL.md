@@ -1,7 +1,7 @@
 ---
 name: "web-margin-notes"
 description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态；作者可手动标「这段改完了」，下次打开自动跳过。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、标已改/段落审完、下次别再让我看这些段、annotate a markdown draft with margin comments、mark paragraphs as reviewed、read annotation feedback and revise。"
-version: 7.7
+version: 7.8
 license: MIT
 created: "2026-11-02"
 updated: "2026-11-12"
@@ -44,6 +44,10 @@ updated: "2026-11-12"
 - **筛选必须重画正文**：v7 起批注卡片随 `renderDoc()` 生成，`renderCards()` 是空函数；改 `state.filter` 后要 `renderDoc()`，否则点了「失效/已处理」什么都不变。
 - **进入即跳过**：`reload()` 首次加载时按 `firstUnreviewed()` 选起跳段（全标完则退到未读段/首段），底部提示"已跳过 n 段已审，从 P# 继续"。注意只在首次加载做，保存批注后的 `reload()` 不能跳走。
 
+## 行间公式（v7.8）
+
+整段只有 `$$…$$` 的段落用 KaTeX 渲染（`templates/static/vendor/katex/`，本地自带，离线可用），编号 `\tag{12-1a}` 也照常显示。原文放在隐藏的 `.ptext.mathsrc` 里，锚点偏移不变；这种段落**不能划词**，只能用段号提整段意见。行内 `$…$` 仍按原文显示。
+
 ## Pitfalls
 
 - **图片路径相对 `media_root`**：`![](figures/x.png)` 由 `/media/<path>` 供给，根目录取 `config.json` 的 `media_root`（默认是文稿所在目录）。文稿若是从 `sections/` 合并到另一个目录的快照，`media_root` 必须指回源项目目录，否则图片 404。外部 http(s) 链接直接引用，不走本路由。
@@ -57,6 +61,7 @@ updated: "2026-11-12"
 - **别用 `data-top=1e9` 表示"排到最底"**：浏览器会钳制成 33554432px，页面高度爆炸。`layoutCards()` 按 `(是否全文意见, top)` 两级排序。
 - **编辑批注时传 `para_anchor`/`quote_anchor`**，不能传 `para`/`quote`——后者是原始字段，传错会把句级批注写成全文批注。
 - **改完服务代码必须重启**：`fuser -k <端口>/tcp` 后再起，否则测到的还是旧逻辑；静态文件走缓存时 `Ctrl+Shift+R`。
+- **公式段别删原文**：`.mathbox` 只是渲染层，隐藏的 `.mathsrc` 必须保留原 TeX，否则 `offset` 全乱；KaTeX 只对「整段是 $$…$$」生效，别对行内 `$…$` 用，否则选区偏移算不准。
 - **`start.sh` 不要写死解释器**：用 `${PYTHON:-python3}`，别把某台机器的 conda 路径带进模板。
 - **起跳位置不能靠 localStorage**：`已读` 是浏览器本地的浏览痕迹，不等于"改完了"；进入页面要按服务端 `review.json` 选段，否则换机器就又把已改段翻一遍。
 - **「已审」不能存 localStorage**：已读进度是按浏览器的，换机器/换浏览器就丢；标「审完了」必须落 `data/review.json`，作者才敢关页面。
