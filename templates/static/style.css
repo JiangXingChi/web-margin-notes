@@ -115,7 +115,23 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .cell.read{background:color-mix(in srgb,var(--fg) 8%,transparent)}
 .cell.fixed{background:color-mix(in srgb,#16a34a 22%,transparent);border-color:#16a34a;color:#15803d}
 .cell.cur{outline:2px solid var(--accent);outline-offset:1px}
+.cell.rev{background:color-mix(in srgb,#16a34a 32%,transparent);border-color:#16a34a;color:#14532d;font-weight:700}
+.cell.revstale{outline:1px dashed #b45309;color:#b45309}
 .mapinfo{color:var(--dim);font-size:11px;white-space:nowrap}
+
+/* 段落审核（v7.4）：作者手动标"这段改完了"，下次打开可跳过 */
+.doc .para{transition:background .15s;margin-bottom:22px}
+.doc.focus .para{margin-bottom:26px}
+.doc .para.rev{background:color-mix(in srgb,#16a34a 5%,transparent);box-shadow:inset 3px 0 0 #16a34a}
+.doc .para.revstale{box-shadow:inset 3px 0 0 #b45309}
+.pmark{position:absolute;right:0;bottom:-19px;z-index:2;font:10.5px/1 system-ui,sans-serif;
+  color:var(--dim);background:var(--bg);border:1px dashed var(--line);border-radius:999px;
+  padding:3px 8px;cursor:pointer;opacity:0;transition:opacity .12s,border-color .12s}
+.doc .para:hover .pmark,.doc.focus .para.cur .pmark,.doc .para.rev .pmark,.doc .para.revstale .pmark{opacity:1}
+.pmark:hover{border-color:var(--accent);color:var(--accent)}
+.pmark.on{color:#15803d;border-color:#16a34a;border-style:solid;
+  background:color-mix(in srgb,#16a34a 12%,transparent)}
+#f-done.on{color:#15803d;border-color:#16a34a;background:color-mix(in srgb,#16a34a 12%,transparent)}
 
 /* 逐段模式 */
 .doc.focus{min-height:calc(100vh - 250px);display:flex;flex-direction:column;justify-content:center}

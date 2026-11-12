@@ -8,7 +8,8 @@
   1. /api/doc 可读，段落数 > 0，字数 > 0
   2. /api/notes 可读，字段齐全（id/para/status/text）
   3. 每条批注的锚点状态属于 exact/relocated/fuzzy/orphan
-  4. （可选）装了 playwright + chromium 时，检查边注与高亮对齐、无重叠
+  4. 段落审核标记：/api/doc 的 review 字段与 totals.reviewed 一致（v7.4）
+  5. （可选）装了 playwright + chromium 时，检查边注与高亮对齐、无重叠
 退出码 0 = 全部通过。
 """
 import json
@@ -45,6 +46,15 @@ def main(argv):
     if unknown:
         problems.append(f"未知锚点状态：{unknown}")
     print(f"批注 {len(doc.get('notes', []))} 条　锚点 {anchors or '—'}")
+
+    review = doc.get("review") or {}
+    reviewed = doc.get("totals", {}).get("reviewed", 0)
+    if reviewed != sum(1 for v in review.values() if v.get("state") == "done"):
+        problems.append("totals.reviewed 与 review 条数不一致")
+    bad_state = [k for k, v in review.items() if v.get("state") not in ("done", "stale")]
+    if bad_state:
+        problems.append(f"段落审核状态异常：{bad_state}")
+    print(f"已审段 {reviewed}/{len(paras)}　过期 {doc.get('totals', {}).get('reviewed_stale', 0)}")
 
     try:
         from playwright.sync_api import sync_playwright

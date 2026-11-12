@@ -1,10 +1,10 @@
 ---
 name: "web-margin-notes"
-description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、annotate a markdown draft with margin comments、read annotation feedback and revise。"
-version: 7.3
+description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态；作者可手动标「这段改完了」，下次打开自动跳过。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、标已改/段落审完、下次别再让我看这些段、annotate a markdown draft with margin comments、mark paragraphs as reviewed、read annotation feedback and revise。"
+version: 7.4
 license: MIT
 created: "2026-11-02"
-updated: "2026-11-05"
+updated: "2026-11-12"
 ---
 ## When to Use
 
@@ -24,10 +24,23 @@ updated: "2026-11-05"
 2. 生成实例：`bash scripts/scaffold.sh <目标目录> <文稿.md> [端口]`。脚本复制 `templates/`、写好 `data/config.json` 与空的 `data/notes.json`，不覆盖已存在目录。
 3. 起服务：`cd <目标目录> && bash start.sh`（或 `setsid python app.py > tmp.log 2>&1 &`）。只监听 127.0.0.1。
 4. 自测：`python3 scripts/verify.py http://127.0.0.1:<端口>`，应输出「全部通过」（段落数、字数、锚点状态、边注对齐、无残留 `**`、无 JS 报错）。
-5. 交付给作者，说明操作：划词 →「＋批注」→ `Ctrl+Enter`；点段号提段落意见；顶栏「＋ 全文意见」提整篇意见。**图可直接批**：`![](path)` 段落渲染为图片，点图或「＋ 图意见」建段落级意见（`quote=""`）；`|` 表格渲染为三线表，单元格内仍可划词。**默认就是逐段模式**：打开只显示当前这一段和它自己的批注（默认不带上下段，可用底栏勾选临时带上下文），`j`/`k`/`↑↓` 翻段，`n`/`p` 跳到下/上一条批注，顶栏「全文」/`f` 切回全篇（选择记在 localStorage）；顶栏下的一排格子是段落地图（橙=有批注、灰=已读、绿=已改），点格跳段。正文高亮：**待处理＝字色改橙并加粗（不铺底、不划线）**，**已改＝浅绿背景**，两种状态各占一个视觉通道；段落地图同为橙／绿。**批注卡片就地插在「被批注那一句」的下一行**（v7 起不再有右侧边注列），编辑器也在划词处浮出。
+5. 交付给作者，说明操作：划词 →「＋批注」→ `Ctrl+Enter`；点段号提段落意见；顶栏「＋ 全文意见」提整篇意见；**段落右下角「标为已改」（或快捷键 `m`）把这一段标成审完**，段落地图变绿、顶栏显示「已审 n/总数」，底栏「下一段待审」（`u`）直接跳到下一个没标过的段。**图可直接批**：`![](path)` 段落渲染为图片，点图或「＋ 图意见」建段落级意见（`quote=""`）；`|` 表格渲染为三线表，单元格内仍可划词。**默认就是逐段模式**：打开只显示当前这一段和它自己的批注（默认不带上下段，可用底栏勾选临时带上下文），`j`/`k`/`↑↓` 翻段，`n`/`p` 跳到下/上一条批注，顶栏「全文」/`f` 切回全篇（选择记在 localStorage）；顶栏下的一排格子是段落地图（橙=有批注、灰=已读、绿=已改），点格跳段。正文高亮：**待处理＝字色改橙并加粗（不铺底、不划线）**，**已改＝浅绿背景**，**段落已审＝左侧绿边＋右下角「✓ 已改」**，两种状态各占一个视觉通道；段落地图同为橙／绿。**批注卡片就地插在「被批注那一句」的下一行**（v7 起不再有右侧边注列），编辑器也在划词处浮出。
 6. 读批注：`python3 scripts/read_notes.py <实例>/data/notes.json`（默认只出 `status=open`，按段排序；`--all` 含已处理，`--json` 原样输出）。
 7. 改稿：只改文稿源文件；改完跑该项目自己的构建（如 docx/pdf 重建），再把处理过的条目 `status` 置 `done`，并写 `reply` 一句话说明"改成了什么"——`POST /api/notes/<id>/status {"status":"done","reply":"…"}`。页面会用绿框显示这句，作者回看时就知道改动落在哪。
 8. 回环：作者 `F5` 刷新，批注按 `quote + prefix + suffix` 自动重定位；`orphan` 条目必须人工确认，不许静默丢弃。
+
+## 段落审核（v7.4）
+
+`data/review.json` 存作者手动标的"这段改完了"，与批注无关、与 localStorage 的「已读」也无关：
+
+```json
+{"doc": "…/稿子.md", "paras": {"12": {"hash": "ab12cd34", "at": "2026-11-12T15:13:51"}}}
+```
+
+- 写入：`POST /api/review/<para>`，body `{"done": true|false}`；`/api/doc` 回 `review` 与 `totals.reviewed`。
+- 每个段落在解析时算 `phash`（正文 sha1 前 8 位）。存的 hash 与当前不一致 → 该段标 `stale`（正文改过，需重看），地图上画虚线橙框。
+- 前端：段落右下角 `标为已改`／`✓ 已改`，`m` 切换当前段；`u` 跳下一个未审段；地图 `.cell.rev` 实心绿。
+- 用途：作者不必每次从头翻；代理人改完稿顺手把对应段标掉，作者回看时只管没标的。
 
 ## Pitfalls
 
@@ -42,6 +55,8 @@ updated: "2026-11-05"
 - **别用 `data-top=1e9` 表示"排到最底"**：浏览器会钳制成 33554432px，页面高度爆炸。`layoutCards()` 按 `(是否全文意见, top)` 两级排序。
 - **编辑批注时传 `para_anchor`/`quote_anchor`**，不能传 `para`/`quote`——后者是原始字段，传错会把句级批注写成全文批注。
 - **改完服务代码必须重启**：`fuser -k <端口>/tcp` 后再起，否则测到的还是旧逻辑；静态文件走缓存时 `Ctrl+Shift+R`。
+- **「已审」不能存 localStorage**：已读进度是按浏览器的，换机器/换浏览器就丢；标"改完了"必须落 `data/review.json`，作者才敢关页面。
+- **审完标记要带段落哈希**：只存段号，正文一改就对不上；存 `phash` 并回 `stale`，否则作者以为看过、其实那段已经变了。
 - **字数口径要说明**：`/api/doc` 的 `chars` 不含标题行，构建脚本打印的含标题，差值等于标题字数，属正常。
 - **重叠批注要嵌套渲染**：同段两条批注的区间可能相交，`renderRich()` 先按边界切段、每条覆盖该段的批注由外到内嵌套 `<mark>`，否则后一条没有高亮、用户找不到锚点。
 - **同一个词一段里出现多次时，`relocate()` 不能只用 `text.find(quote)`**：那样所有「候选」都被吸到第一次出现的位置，前端算得再对也没用。必须「存下的 offset → 前后文 prefix/suffix → find() 兜底」三级消歧（`_find_quote()`）。
@@ -70,7 +85,8 @@ updated: "2026-11-05"
 - 边注卡片不得高于其锚点；相邻卡片不重叠（1280/1512/1920 三档）。**因避让前一条而下移是正常的**，`verify.py` 单列"避让下移"计数，别当错位。
 - 逐段模式（默认）：**只渲染当前段**（勾选"带上下段"才显示 ±1 段淡显），`j`/`k` 翻段，`n`/`p` 跳批注，底栏显示 `P# / N`；页面不滚动（scrollHeight ≈ 视口高）；段落地图与已读计数同步。
 - `export/意见清单.md` 与 `notes.json` 的条数、顺序、引文一致。
-- 已读进度按**文稿路径**记（`wmn:read:<path>`），改稿后 hash 变了也不清零；"待处理"计数不含 `orphan`，失效条目单列。
+- 已读进度按**文稿路径**记（`wmn:read:<path>`）；"待处理"计数不含 `orphan`，失效条目单列。
+- 段落审核（v7.4）：`POST /api/review/<para>` 标 `done` 后，`/api/doc` 的 `review` 出现该段、`totals.reviewed` 加一；再 POST `{"done": false}` 撤销。改这段正文后刷新，状态变 `stale`（`reviewed_stale` 加一），地图画虚线橙框。
 - `reply` 只在 `status=done` 时显示；撤回 done 时后端会清掉 `reply`/`doneAt`。
 
 ## 模板与脚本
@@ -92,7 +108,7 @@ web-margin-notes/
 
 ## 数据契约
 
-`data/notes.json` 是唯一真源，代理人和页面共用：
+`data/notes.json` 是批注的唯一真源，`data/review.json` 是段落审核状态，代理人和页面共用：
 
 ```json
 {"doc": "…/稿子.md", "version": 1,

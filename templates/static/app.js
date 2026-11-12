@@ -10,7 +10,8 @@ const state = {
   draft: null,
   mode: "all",     // all | focus
   cur: 1,          // 逐段模式的当前段
-  read: new Set(), // 已读段落号
+  read: new Set(), // 已读段落号（本机）
+  review: {},      // 段落审核状态（服务端 review.json）：{para: {state:"done"|"stale", at}}
   showCtx: false,
 };
 const TAGS = ["数字", "术语", "结构", "文字", "越界", "删"];
@@ -41,6 +42,39 @@ function markRead(i, val = true) {
   renderMap();
 }
 
+function isReviewed(i) { return state.review[i]?.state === "done"; }
+function isStale(i) { return state.review[i]?.state === "stale"; }
+
+async function toggleReview(i) {
+  if (!i) return;
+  const done = !isReviewed(i);
+  await api(`/api/review/${i}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ done }),
+  });
+  if (done) state.review[i] = { state: "done", at: new Date().toISOString() };
+  else delete state.review[i];
+  renderMap();
+  const el = $(`.para[data-i="${i}"]`, docEl);
+  if (el) {
+    el.classList.toggle("rev", done);
+    const b = el.querySelector(".pmark");
+    if (b) { b.textContent = done ? "✓ 已改" : "标为已改"; b.classList.toggle("on", done); }
+  }
+  syncDoneBtn();
+  toast(done ? `P${i} 已标为改完` : `P${i} 已撤销`);
+}
+
+function syncDoneBtn() {
+  const b = $("#f-done");
+  if (!b) return;
+  const on = isReviewed(state.cur);
+  b.classList.toggle("on", on);
+  b.textContent = on ? "✓ 本段已改" : "标本段为已改";
+  b.title = on ? "再点一次撤销（m）" : "标为改完，之后可跳过（m）";
+}
+
 function noteCount(i) {
   return state.notes.filter((n) => n.para_anchor === i).length;
 }
@@ -56,6 +90,8 @@ function renderMap() {
     if (noteCount(p.i)) b.classList.add("has");
     if (state.notes.some((n) => n.para_anchor === p.i && n.status === "done" && n.reply)) b.classList.add("fixed");
     if (state.read.has(p.i)) b.classList.add("read");
+    if (isReviewed(p.i)) b.classList.add("rev");
+    else if (isStale(p.i)) b.classList.add("revstale");
     if (state.mode === "focus" && p.i === state.cur) b.classList.add("cur");
     b.onclick = () => gotoPara(p.i);
     map.appendChild(b);
@@ -65,10 +101,13 @@ function renderMap() {
   const fixed = state.notes.filter((n) => n.status === "done" && n.reply).length;
   const open = state.notes.filter((n) => n.status === "open" && n.anchor !== "orphan").length;
   const orphan = state.notes.filter((n) => n.anchor === "orphan").length;
-  $("#mapinfo").textContent = `已读 ${read}/${total}　待处理 ${open}　已改 ${fixed}` + (orphan ? `　失效 ${orphan}` : "");
+  const rev = state.doc.paras.filter((p) => isReviewed(p.i)).length;
+  $("#mapinfo").textContent = `已读 ${read}/${total}　已审 ${rev}/${total}　待处理 ${open}　已改 ${fixed}` + (orphan ? `　失效 ${orphan}` : "");
 }
 
 function gotoPara(i, opts = {}) {
+  // 逐段翻页时把状态同步到「本段已改」按钮
+  queueMicrotask(syncDoneBtn);
   const total = state.doc.paras.length;
   i = Math.min(total, Math.max(1, i));
   if (state.mode === "focus" && opts.markRead !== false && state.cur !== i) markRead(state.cur);
@@ -111,6 +150,7 @@ function setMode(mode) {
   renderDoc();
   renderCards();
   renderMap();
+  syncDoneBtn();
 }
 
 /* ------------------------------------------------------------ 工具 */
@@ -254,6 +294,15 @@ function renderDoc() {
       ? gotoPara(p.i)
       : openComposer({ para: p.i, quote: "", prefix: "", suffix: "", offset: 0 }));
     el.append(no);
+
+    const mk = document.createElement("button");
+    mk.className = "pmark" + (isReviewed(p.i) ? " on" : "");
+    mk.textContent = isReviewed(p.i) ? "✓ 已改" : "标为已改";
+    mk.title = isReviewed(p.i) ? "本段已审，再点撤销（m）" : "标为改完，之后可跳过（m）";
+    mk.onclick = (e) => { e.stopPropagation(); toggleReview(p.i); };
+    el.append(mk);
+    if (isReviewed(p.i)) el.classList.add("rev");
+    else if (isStale(p.i)) el.classList.add("revstale");
 
     const mine = state.notes.filter((n) => visible(n) && n.para_anchor === p.i);
     const rendered = new Set();
@@ -603,6 +652,17 @@ $("#f-prev").onclick = () => gotoPara(state.cur - 1);
 $("#f-next").onclick = () => gotoPara(state.cur + 1);
 $("#f-ctx").onchange = (e) => { state.showCtx = e.target.checked; renderDoc(); layoutCards(); };
 $("#f-note").onclick = () => jumpNextNote(1);
+$("#f-done").onclick = () => toggleReview(state.cur);
+$("#f-undone").onclick = () => jumpNextUnreviewed();
+function jumpNextUnreviewed() {
+  const list = state.doc.paras;
+  const start = state.cur;
+  const next = list.find((p) => p.i > start && !isReviewed(p.i))
+    || list.find((p) => !isReviewed(p.i));
+  if (!next) return toast("全部段落都标为已改了");
+  if (state.mode !== "focus") setMode("focus");
+  gotoPara(next.i);
+}
 $("#f-unread").onclick = () => {
   const p = state.doc.paras.find((x) => !state.read.has(x.i));
   if (p) { setMode("focus"); gotoPara(p.i); } else toast("全部读完了");
@@ -670,6 +730,8 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "f") { setMode(state.mode === "focus" ? "all" : "focus"); return; }
+  if (e.key === "m") { toggleReview(state.cur); return; }
+  if (e.key === "u") { jumpNextUnreviewed(); return; }
   if (e.key === "n") { jumpNextNote(1); return; }
   if (e.key === "p") { jumpNextNote(-1); return; }
   if (e.key === "j" || e.key === "k" || e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -696,6 +758,7 @@ async function reload() {
   const d = await api("/api/doc");
   state.doc = d;
   state.notes = d.notes;
+  state.review = d.review || {};
   document.title = `${d.app_title} · ${d.title}`;
   $("#doc-title").textContent = `${d.app_title} · ${d.title}`;
   $("#doc-meta").textContent = `${d.totals.chars} 字 · ${d.totals.paras} 段 · ${d.hash} · ${d.mtime}`;
@@ -715,6 +778,7 @@ async function reload() {
   renderDoc();
   renderCards();
   renderMap();
+  syncDoneBtn();
 }
 
 window.addEventListener("resize", () => layoutCards());

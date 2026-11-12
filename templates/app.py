@@ -22,6 +22,7 @@ EXPORT = os.path.join(BASE, "export")
 CFG = os.path.join(DATA, "config.json")
 NOTES = os.path.join(DATA, "notes.json")
 BAK = NOTES + ".bak"
+REVIEW = os.path.join(DATA, "review.json")   # 段落级"已审"标记，按段落文本哈希判断是否过期
 LOCK = threading.Lock()
 
 app = Flask(__name__, static_folder=os.path.join(BASE, "static"), static_url_path="/s")
@@ -60,6 +61,18 @@ def save_notes(data):
 
 def now():
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def load_review(doc_path):
+    """段落级审核状态：{"doc": 路径, "paras": {"3": {"hash": "…", "at": "…"}}}"""
+    if not os.path.exists(REVIEW):
+        return {"doc": doc_path, "paras": {}}
+    with open(REVIEW, encoding="utf-8") as f:
+        data = json.load(f)
+    if data.get("doc") != doc_path:          # 换了文稿就重来
+        return {"doc": doc_path, "paras": {}}
+    data.setdefault("paras", {})
+    return data
 
 
 # ---------------------------------------------------------------- 文稿解析
@@ -126,6 +139,7 @@ def parse_doc():
         media, fig_only = _media_of(body_raw, text)
         paras.append({"i": n + 1, "text": text, "bold": bold, "chars": cjk(text),
                       "head": head,
+                      "phash": hashlib.sha1(text.encode("utf-8")).hexdigest()[:8],
                       "media": media, "figure": bool(fig_only and media),
                       "table": _is_table(text)})
     refs = [r.strip() for r in re.split(r"\n\s*\n", refs_raw) if r.strip()]
@@ -299,12 +313,25 @@ def api_doc():
     doc["app_title"] = load_cfg().get("app_title", "初稿批注")
     data = load_notes()
     notes = decorate(doc, data)
+    rev_raw = load_review(doc["path"])["paras"]
+    review, reviewed, stale = {}, 0, 0
+    for p in doc["paras"]:
+        r = rev_raw.get(str(p["i"]))
+        if not r:
+            continue
+        state_r = "done" if r.get("hash") == p["phash"] else "stale"
+        review[str(p["i"])] = {"state": state_r, "at": r.get("at")}
+        reviewed += state_r == "done"
+        stale += state_r == "stale"
+    doc["review"] = review
     doc["totals"] = {
         "chars": sum(p["chars"] for p in doc["paras"]),
         "paras": len(doc["paras"]),
         "open": sum(1 for n in notes if n["status"] == "open" and n["anchor"] != "orphan"),
         "done": sum(1 for n in notes if n["status"] == "done"),
         "orphan": sum(1 for n in notes if n["anchor"] == "orphan"),
+        "reviewed": reviewed,
+        "reviewed_stale": stale,
     }
     doc["notes"] = notes
     return jsonify(doc)
@@ -380,6 +407,25 @@ def api_status(nid):
                 save_notes(data)
                 return jsonify(ok=True)
     return jsonify(error="找不到该批注"), 404
+
+
+@app.post("/api/review/<int:n>")
+def api_review(n):
+    """段落级审核标记：作者手动标"这段改完了"，下次打开据此跳过。"""
+    body = request.get_json(force=True) or {}
+    doc = parse_doc()
+    para = next((p for p in doc["paras"] if p["i"] == n), None)
+    if para is None:
+        return jsonify(error="找不到该段"), 404
+    done = bool(body.get("done", True))
+    with LOCK:
+        data = load_review(doc["path"])
+        if done:
+            data["paras"][str(n)] = {"hash": para["phash"], "at": now()}
+        else:
+            data["paras"].pop(str(n), None)
+        save_json(REVIEW, data)
+    return jsonify(ok=True, para=n, reviewed=done, total=len(data["paras"]))
 
 
 @app.post("/api/export")
