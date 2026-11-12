@@ -54,13 +54,15 @@ cd ~/my-review && bash start.sh
 | `j` / `k` / `↑↓` | 逐段模式翻段 |
 | `n` / `p` | 下/上一条批注 |
 | `f` | 切换 逐段 ↔ 全文 |
+| `m` / 段落右下角「标为已改」 | 这段审完了，记进 `review.json`，下次打开可跳过（再按撤销） |
+| `u` / 「下一段待审」 | 跳到第一个没标已改的段 |
 | `✓` / `✎` / `×` | 标记已处理 / 编辑 / 删除 |
 | 「导出清单」 | 写 `export/意见清单.md` |
 | 「复制全部」 | 全部意见复制到剪贴板 |
 
 ## Data contract
 
-`data/notes.json` 是唯一真源：
+`data/notes.json` 是批注的唯一真源，`data/review.json` 是段落审核状态：
 
 ```json
 {"doc": "…/chapter1.md", "version": 1,
@@ -74,6 +76,14 @@ cd ~/my-review && bash start.sh
 - `status`：`open` / `done`；`reply`：代理人写的改法；`doneAt`：完成时间。
 - 读接口返回重定位后的副本：`para_anchor` / `quote_anchor` / `offset` / `anchor`（`exact` / `relocated` / `fuzzy` / `orphan`）。
 
+段落审核（v7.4）：作者手动标「这段改完了」，与批注、浏览器本地「已读」都无关：
+
+```json
+{"doc": "…/chapter1.md", "paras": {"12": {"hash": "ab12cd34", "at": "2026-11-12T15:13:51"}}}
+```
+
+`hash` 是该段正文的 sha1 前 8 位；正文改过 → 回 `stale`，前端画橙色虚线框提醒重看。
+
 ## API
 
 | 方法 | 路径 | 说明 |
@@ -83,6 +93,7 @@ cd ~/my-review && bash start.sh
 | POST | `/api/notes` | 新建；带 `id` 则更新 |
 | DELETE | `/api/notes/<id>` | 删除 |
 | POST | `/api/notes/<id>/status` | `{"status":"done","reply":"…"}` |
+| POST | `/api/review/<para>` | `{"done":true\|false}`，标记/撤销"这段改完了" |
 | POST | `/api/export` | 写 `export/意见清单.md` |
 | GET | `/api/health` | 探活 |
 
@@ -110,9 +121,16 @@ examples/demo.md        演示用文稿
 - **零构建**：没有 npm/bun/vite，也没有云端账号；
 - **单一真源**：人和代理读同一个 JSON，代理可直接改 `status` 闭环，不靠剪贴板中转；
 - **改稿后仍能定位**：四级锚点回退；多数同类按行号或内容哈希，改一次就全部失效；
-- **三粒度**：选区／整段／全文。
+- **三粒度**：选区／整段／全文；
+- **段落级审完标记**：作者标过的段落服务端记住，下次打开可跳过；正文改过自动转"过期"。
 
 没做：回复线程、多人协作、track changes、导出 docx、MCP。
+
+## Version notes
+
+- **v7.4** — 段落审核标记：`data/review.json`、`POST /api/review/<para>`、快捷键 `m`/`u`、地图实心绿与「已审 n/总数」，`verify.py` 增加一致性检查。
+- **v7.3** — 行内批注卡片、图片/表格/小标题渲染、锚点定位修正、逐段模式为默认。
+- **v7** — 批注卡片就地插在句下，取消右侧边注列。
 
 ## License
 
