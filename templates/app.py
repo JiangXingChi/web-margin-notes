@@ -30,6 +30,13 @@ app = Flask(__name__, static_folder=os.path.join(BASE, "static"), static_url_pat
 DEFAULT_REF_HEAD = "## 参考文献"
 
 
+@app.errorhandler(FileNotFoundError)
+def _missing_file(e):
+    """文稿/配置缺失时给前端一句能看懂的话，而不是裸 500。"""
+    name = getattr(e, "filename", None) or ""
+    return jsonify(error=f"找不到文件：{name}。检查 data/config.json 的 manuscript", ok=False), 500
+
+
 # ---------------------------------------------------------------- 基础读写
 
 def load_cfg():
@@ -67,11 +74,15 @@ def load_review(doc_path):
     """段落级审核状态：{"doc": 路径, "paras": {"3": {"hash": "…", "at": "…"}}}"""
     if not os.path.exists(REVIEW):
         return {"doc": doc_path, "paras": {}}
-    with open(REVIEW, encoding="utf-8") as f:
-        data = json.load(f)
-    if data.get("doc") != doc_path:          # 换了文稿就重来
+    try:
+        with open(REVIEW, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {"doc": doc_path, "paras": {}}      # 坏文件当空，别让整个 API 挂掉
+    if not isinstance(data, dict) or data.get("doc") != doc_path:   # 换了文稿就重来
         return {"doc": doc_path, "paras": {}}
-    data.setdefault("paras", {})
+    if not isinstance(data.get("paras"), dict):
+        data["paras"] = {}
     return data
 
 
@@ -121,7 +132,7 @@ def parse_doc():
         md = f.read()
     body = md.split(ref_head)[0] if ref_head in md else md
     refs_raw = md.split(ref_head)[1] if ref_head in md else ""
-    lines = body.strip("\n").split("\n")
+    lines = body.strip("\n").split("\n") if body.strip() else [""]
     title = re.sub(r"^#\s*", "", lines[0].strip())
     rest = "\n".join(lines[1:])
     raw_paras = [p.strip() for p in re.split(r"\n\s*\n", rest)
@@ -298,7 +309,8 @@ def media(p):
 
 @app.get("/api/health")
 def health():
-    return jsonify(ok=True, notes_path=NOTES)
+    return jsonify(ok=True, notes_path=NOTES, review_path=REVIEW,
+                   cfg=CFG, manuscript=load_cfg().get("manuscript"))
 
 
 @app.get("/api/notes")
@@ -391,6 +403,8 @@ def api_delete(nid):
 def api_status(nid):
     body = request.get_json(force=True) or {}
     status = body.get("status", "open")
+    if status not in ("open", "done"):
+        return jsonify(error="status 只能是 open 或 done"), 400
     with LOCK:
         data = load_notes()
         for n in data["notes"]:
@@ -417,7 +431,7 @@ def api_review(n):
     para = next((p for p in doc["paras"] if p["i"] == n), None)
     if para is None:
         return jsonify(error="找不到该段"), 404
-    done = bool(body.get("done", True))
+    done = body.get("done", True) not in (False, 0, "false", "0", "no")
     with LOCK:
         data = load_review(doc["path"])
         if done:
@@ -436,13 +450,28 @@ def api_export():
     os.makedirs(EXPORT, exist_ok=True)
     path = os.path.join(EXPORT, "意见清单.md")
     opened = [n for n in notes if n["status"] == "open"]
+    rev_raw = load_review(doc["path"])["paras"]
+    reviewed = [p["i"] for p in doc["paras"]
+                if str(p["i"]) in rev_raw and rev_raw[str(p["i"])].get("hash") == p["phash"]]
+    pending = [p["i"] for p in doc["paras"] if p["i"] not in reviewed]
     lines = [
         f"# {cfg.get('app_title', '初稿批注')}清单",
         "",
         f"文档：`{doc['path']}`（{sum(p['chars'] for p in doc['paras'])} 字，{len(doc['paras'])} 段，hash {doc['hash']}）",
         f"导出：{datetime.now().strftime('%Y-%m-%d %H:%M')}　待处理 {len(opened)} 条／已处理 {len(notes) - len(opened)} 条",
+        f"段落：已审 {len(reviewed)}／{len(doc['paras'])}　未审 {len(pending)}",
         "",
     ]
+    if pending:
+        spans, start, prev = [], pending[0], pending[0]
+        for x in pending[1:]:
+            if x == prev + 1:
+                prev = x
+                continue
+            spans.append(f"{start}—{prev}" if prev > start else f"{start}")
+            start = prev = x
+        spans.append(f"{start}—{prev}" if prev > start else f"{start}")
+        lines += ["## 未审段落", "", "、".join(spans), ""]
     cur = None
     for n in notes:
         key = n["para_anchor"]

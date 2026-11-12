@@ -22,6 +22,13 @@ def get(url):
         return json.load(r)
 
 
+def post(url, payload):
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=5) as r:
+        return json.load(r)
+
+
 def main(argv):
     base = (argv[1] if len(argv) > 1 else "http://127.0.0.1:5178").rstrip("/")
     problems = []
@@ -55,6 +62,23 @@ def main(argv):
     if bad_state:
         problems.append(f"段落审核状态异常：{bad_state}")
     print(f"已审段 {reviewed}/{len(paras)}　过期 {doc.get('totals', {}).get('reviewed_stale', 0)}")
+
+    # 段落审核写接口往返：找一段还没标过的 → 标 → 读回 → 撤销（不动已有标记）
+    free = [str(p["i"]) for p in paras if str(p["i"]) not in review]
+    if free:
+        last = free[-1]
+        prev = None
+        try:
+            post(f"{base}/api/review/{last}", {"done": True})
+            after = get(base + "/api/doc")
+            if after.get("review", {}).get(last, {}).get("state") != "done":
+                problems.append("POST /api/review 标记后读回不是 done")
+        except Exception as e:
+            problems.append(f"POST /api/review 失败：{type(e).__name__}: {e}")
+        finally:
+            post(f"{base}/api/review/{last}", {"done": False})
+    else:
+        print("所有段落都已标过，跳过 review 写接口检查")
 
     try:
         from playwright.sync_api import sync_playwright

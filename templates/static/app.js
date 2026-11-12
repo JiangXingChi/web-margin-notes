@@ -49,22 +49,46 @@ function isStale(i) { return state.review[i]?.state === "stale"; }
 async function toggleReview(i) {
   if (!i) return;
   const done = !isReviewed(i);
-  await api(`/api/review/${i}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ done }),
-  });
+  try {
+    await api(`/api/review/${i}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ done }),
+    });
+  } catch (err) {
+    return toast("标记失败：" + err.message, 4000);   // 失败不改本地状态，按钮保持原样
+  }
   if (done) state.review[i] = { state: "done", at: new Date().toISOString() };
   else delete state.review[i];
   renderMap();
   const el = $(`.para[data-i="${i}"]`, docEl);
   if (el) {
     el.classList.toggle("rev", done);
+    el.classList.toggle("revstale", !done && isStale(i));
     const b = el.querySelector(".pmark");
-    if (b) { b.textContent = done ? "☑ 已审" : "☐"; b.classList.toggle("on", done); }
+    if (b) {
+      b.textContent = done ? "☑ 已审" : isStale(i) ? "↻" : "☐";
+      b.classList.toggle("on", done);
+      b.classList.toggle("stale", !done && isStale(i));
+    }
   }
   syncDoneBtn();
   toast(done ? `P${i} 已审` : `P${i} 取消已审`);
+}
+
+/* 全文模式没有"当前段"：取第一个还露在视口里的段（顶部对齐阅读位置） */
+function paraAtViewport() {
+  const items = $$(".para", docEl).map((el) => {
+    const r = el.getBoundingClientRect();
+    return { el, top: r.top, bottom: r.bottom };
+  });
+  if (!items.length) return 0;
+  const pick = items.find((x) => x.bottom > 90) || items[items.length - 1];
+  return +pick.el.dataset.i || 0;
+}
+
+function currentPara() {
+  return state.mode === "focus" ? state.cur : paraAtViewport();
 }
 
 function syncDoneBtn() {
@@ -83,13 +107,20 @@ function noteCount(i) {
 function renderMap() {
   const map = $("#map");
   map.innerHTML = "";
+  const cntBy = new Map(), fixedBy = new Set();
+  for (const n of state.notes) {
+    cntBy.set(n.para_anchor, (cntBy.get(n.para_anchor) || 0) + 1);
+    if (n.status === "done" && n.reply) fixedBy.add(n.para_anchor);
+  }
   for (const p of state.doc.paras) {
     const b = document.createElement("button");
     b.className = "cell";
     b.textContent = p.i;
-    b.title = `P${p.i}　${p.text.slice(0, 24)}…` + (noteCount(p.i) ? `（${noteCount(p.i)} 条批注）` : "");
-    if (noteCount(p.i)) b.classList.add("has");
-    if (state.notes.some((n) => n.para_anchor === p.i && n.status === "done" && n.reply)) b.classList.add("fixed");
+    const cnt = cntBy.get(p.i) || 0;
+    b.title = `P${p.i}　${p.text.slice(0, 24)}…` + (cnt ? `（${cnt} 条批注）` : "")
+      + (isReviewed(p.i) ? "　已审" : isStale(p.i) ? "　需重审" : "");
+    if (cnt) b.classList.add("has");
+    if (fixedBy.has(p.i)) b.classList.add("fixed");
     if (state.read.has(p.i)) b.classList.add("read");
     if (isReviewed(p.i)) b.classList.add("rev");
     else if (isStale(p.i)) b.classList.add("revstale");
@@ -98,12 +129,15 @@ function renderMap() {
     map.appendChild(b);
   }
   const total = state.doc.paras.length;
-  const read = state.read.size;
+  const read = state.doc.paras.filter((p) => state.read.has(p.i)).length;   // 段删掉后不虚增
   const fixed = state.notes.filter((n) => n.status === "done" && n.reply).length;
   const open = state.notes.filter((n) => n.status === "open" && n.anchor !== "orphan").length;
   const orphan = state.notes.filter((n) => n.anchor === "orphan").length;
   const rev = state.doc.paras.filter((p) => isReviewed(p.i)).length;
-  $("#mapinfo").textContent = `已读 ${read}/${total}　已审 ${rev}/${total}　待处理 ${open}　已改 ${fixed}` + (orphan ? `　失效 ${orphan}` : "");
+  const stale = state.doc.paras.filter((p) => isStale(p.i)).length;
+  $("#mapinfo").textContent = `已读 ${read}/${total}　已审 ${rev}/${total}`
+    + (stale ? `（过期 ${stale}）` : "")
+    + `　待处理 ${open}　已改 ${fixed}` + (orphan ? `　失效 ${orphan}` : "");
 }
 
 function gotoPara(i, opts = {}) {
@@ -170,7 +204,7 @@ function toast(msg, ms = 2200) {
   t._t = setTimeout(() => (t.hidden = true), ms);
 }
 function esc(s) {
-  return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 /* markdown 表格转 <table>；纯展示，选区偏移按原 text 反查 */
@@ -299,9 +333,12 @@ function renderDoc() {
     el.append(no);
 
     const mk = document.createElement("button");
-    mk.className = "pmark" + (isReviewed(p.i) ? " on" : "");
-    mk.textContent = isReviewed(p.i) ? "☑ 已审" : "☐";
-    mk.title = isReviewed(p.i) ? "本段已审，再点撤销（m）" : "标为审完，之后可跳过（m）";
+    mk.className = "pmark" + (isReviewed(p.i) ? " on" : "") + (isStale(p.i) ? " stale" : "");
+    mk.textContent = isReviewed(p.i) ? "☑ 已审" : isStale(p.i) ? "↻" : "☐";
+    mk.title = isReviewed(p.i) ? "本段已审，再点撤销（m）"
+      : isStale(p.i) ? "正文改过了，需重看；点一下重新标为审完（m）"
+      : "标为审完，之后可跳过（m）";
+    mk.setAttribute("aria-label", mk.title);
     mk.onclick = (e) => { e.stopPropagation(); toggleReview(p.i); };
     el.append(mk);
     if (isReviewed(p.i)) el.classList.add("rev");
@@ -394,10 +431,20 @@ function renderDoc() {
   const generals = state.notes.filter((n) => visible(n) && !(n.para_anchor > 0));
   for (const n of generals) { docEl.appendChild(inlineCard(n)); shownNotes++; }
 
+  // 兜底：段号已经不存在（文稿删段后）的批注也要露出来，不能静默消失
+  const paraSet = new Set(state.doc.paras.map((p) => p.i));
+  for (const n of state.notes.filter((x) => visible(x) && x.para_anchor > 0 && !paraSet.has(x.para_anchor))) {
+    docEl.appendChild(inlineCard(n));
+    shownNotes++;
+  }
+
   if (state.mode === "focus" && !shownNotes) {
     const empty = document.createElement("div");
     empty.className = "card empty inline";
-    empty.innerHTML = `<div class="body" style="color:var(--dim)">本段还没有批注。划词后按 <kbd>Ctrl+K</kbd> 或点「＋批注」。</div>`;
+    const why = state.filter === "open" ? "本段还没有待处理的批注"
+      : state.filter === "done" ? "本段没有已处理的批注"
+      : state.filter === "orphan" ? "本段没有失效的批注" : "本段还没有批注";
+    empty.innerHTML = `<div class="body" style="color:var(--dim)">${why}。划词后按 <kbd>Ctrl+K</kbd> 或点「＋批注」。</div>`;
     docEl.appendChild(empty);
   }
 
@@ -436,9 +483,9 @@ function cardEl(n) {
       <span class="who">${head}</span>
       ${quote ? `<span>· 引文</span>` : `<span>· ${n.para_anchor ? "整段" : "全文"}</span>`}
       <span class="acts">
-        <button class="icon" data-a="done" title="标记已处理">${n.status === "done" ? "↺" : "✓"}</button>
-        <button class="icon" data-a="edit" title="编辑">✎</button>
-        <button class="icon" data-a="del" title="删除">×</button>
+        <button class="icon" data-a="done" title="标记已处理" aria-label="标记已处理">${n.status === "done" ? "↺" : "✓"}</button>
+        <button class="icon" data-a="edit" title="编辑" aria-label="编辑">✎</button>
+        <button class="icon" data-a="del" title="删除" aria-label="删除">×</button>
       </span>
     </div>
     ${quote ? `<div class="quote">「<em>${esc(quote)}</em>」</div>` : ""}
@@ -479,17 +526,21 @@ function focusCard(id) {
 }
 
 async function setStatus(n) {
-  await api(`/api/notes/${n.id}/status`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ status: n.status === "done" ? "open" : "done" }),
-  });
-  await reload();
+  try {
+    await api(`/api/notes/${n.id}/status`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: n.status === "done" ? "open" : "done" }),
+    });
+    await reload();
+  } catch (err) { toast("操作失败：" + err.message, 4000); }
 }
 async function del(n) {
   if (!confirm("删除这条批注？")) return;
-  await api(`/api/notes/${n.id}`, { method: "DELETE" });
-  await reload();
+  try {
+    await api(`/api/notes/${n.id}`, { method: "DELETE" });
+    await reload();
+  } catch (err) { toast("删除失败：" + err.message, 4000); }
 }
 
 /* 选区 → 批注 */
@@ -655,14 +706,14 @@ $("#f-prev").onclick = () => gotoPara(state.cur - 1);
 $("#f-next").onclick = () => gotoPara(state.cur + 1);
 $("#f-ctx").onchange = (e) => { state.showCtx = e.target.checked; renderDoc(); layoutCards(); };
 $("#f-note").onclick = () => jumpNextNote(1);
-$("#f-done").onclick = () => toggleReview(state.cur);
+$("#f-done").onclick = () => toggleReview(currentPara());
 $("#f-undone").onclick = () => jumpNextUnreviewed();
 function jumpNextUnreviewed() {
   const list = state.doc.paras;
-  const start = state.cur;
+  const start = currentPara();
   const next = list.find((p) => p.i > start && !isReviewed(p.i))
     || list.find((p) => !isReviewed(p.i));
-  if (!next) return toast("全部段落都标为已改了");
+  if (!next) return toast("全部段落都已审完");
   if (state.mode !== "focus") setMode("focus");
   gotoPara(next.i);
 }
@@ -691,12 +742,15 @@ $("#filters").onclick = (e) => {
   if (!b) return;
   $$(".chip").forEach((x) => x.classList.toggle("on", x === b));
   state.filter = b.dataset.f;
-  renderCards();
+  renderDoc();          // v7 起卡片和正文一起渲染，筛完必须重画
+  renderMap();
 };
 
 $("#btn-export").onclick = async () => {
-  const r = await api("/api/export", { method: "POST" });
-  toast(`已写入 ${r.path}（${r.count} 条）`, 3200);
+  try {
+    const r = await api("/api/export", { method: "POST" });
+    toast(`已写入 ${r.path}（${r.count} 条）`, 3200);
+  } catch (err) { toast("导出失败：" + err.message, 4000); }
 };
 
 $("#btn-copy").onclick = async () => {
@@ -713,8 +767,12 @@ $("#btn-copy").onclick = async () => {
     if (n.anchor === "orphan") lines.push("  > ⚠ 定位可能失效");
     lines.push(`  ${n.text}`, "");
   }
-  await navigator.clipboard.writeText(lines.join("\n"));
-  toast(`已复制 ${state.notes.length} 条意见`);
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    toast(`已复制 ${state.notes.length} 条意见`);
+  } catch {
+    toast("复制失败：浏览器不允许访问剪贴板", 4000);
+  }
 };
 
 /* 键盘 */
@@ -733,7 +791,7 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "f") { setMode(state.mode === "focus" ? "all" : "focus"); return; }
-  if (e.key === "m") { toggleReview(state.cur); return; }
+  if (e.key === "m") { toggleReview(currentPara()); return; }
   if (e.key === "u") { jumpNextUnreviewed(); return; }
   if (e.key === "n") { jumpNextNote(1); return; }
   if (e.key === "p") { jumpNextNote(-1); return; }
@@ -780,8 +838,14 @@ async function reload() {
     const skipped = d.paras.filter((p) => isReviewed(p.i)).length;
     if (skipped) {
       const at = state.cur;
-      setTimeout(() => toast(`已跳过 ${skipped} 段「已改」，从 P${at} 继续`), 400);
+      setTimeout(() => toast(`已跳过 ${skipped} 段已审，从 P${at} 继续`), 400);
     }
+  }
+  if (!d.paras.length) {
+    docEl.innerHTML = '<p class="para empty-doc">文稿里还没有可批注的段落。</p>';
+    $("#focusbar").hidden = true;
+    $("#mapinfo").textContent = "0 段";
+    return;
   }
   state.cur = Math.min(Math.max(1, state.cur || 1), d.paras.length);
   applyModeChrome();
