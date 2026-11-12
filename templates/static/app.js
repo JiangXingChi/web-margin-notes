@@ -43,6 +43,7 @@ function markRead(i, val = true) {
 }
 
 function isReviewed(i) { return state.review[i]?.state === "done"; }
+function firstUnreviewed(list) { return list.find((p) => !isReviewed(p.i)); }
 function isStale(i) { return state.review[i]?.state === "stale"; }
 
 async function toggleReview(i) {
@@ -142,7 +143,9 @@ function setMode(mode) {
   if (mode === "focus") {
     const exists = state.doc.paras.some((p) => p.i === state.cur);
     if (!exists) {
-      const first = state.doc.paras.find((p) => !state.read.has(p.i));
+      // 优先落到第一个没标「已改」的段，其次才是未读段
+      const first = firstUnreviewed(state.doc.paras)
+        || state.doc.paras.find((p) => !state.read.has(p.i));
       state.cur = first ? first.i : 1;
     }
   }
@@ -755,6 +758,7 @@ document.addEventListener("keydown", (e) => {
 
 /* ------------------------------------------------------------ 启动 */
 async function reload() {
+  const firstLoad = !state.doc;
   const d = await api("/api/doc");
   state.doc = d;
   state.notes = d.notes;
@@ -766,12 +770,18 @@ async function reload() {
   $("#c-all").textContent = d.notes.length;
   $("#c-done").textContent = d.totals.done;
   $("#c-orphan").textContent = d.totals.orphan;
-  const firstLoad = !state.doc;
   loadRead();
   state.mode = localStorage.getItem("wmn:mode") === "all" ? "all" : "focus";
-  if (state.mode === "focus" && (firstLoad || !state.cur)) {
-    const first = d.paras.find((p) => !state.read.has(p.i));
+  if (state.mode === "focus" && firstLoad) {
+    // 打开页面自动跳过已标「已改」的段，落在第一个待审段
+    const first = firstUnreviewed(d.paras)
+      || d.paras.find((p) => !state.read.has(p.i)) || d.paras[0];
     state.cur = first ? first.i : 1;
+    const skipped = d.paras.filter((p) => isReviewed(p.i)).length;
+    if (skipped) {
+      const at = state.cur;
+      setTimeout(() => toast(`已跳过 ${skipped} 段「已改」，从 P${at} 继续`), 400);
+    }
   }
   state.cur = Math.min(Math.max(1, state.cur || 1), d.paras.length);
   applyModeChrome();
