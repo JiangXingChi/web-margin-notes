@@ -1,7 +1,7 @@
 ---
 name: "web-margin-notes"
 description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态；作者可手动标「这段改完了」，下次打开自动跳过。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、标已改/段落审完、下次别再让我看这些段、annotate a markdown draft with margin comments、mark paragraphs as reviewed、read annotation feedback and revise。"
-version: 7.8
+version: 7.9
 license: MIT
 created: "2026-11-02"
 updated: "2026-11-12"
@@ -44,9 +44,13 @@ updated: "2026-11-12"
 - **筛选必须重画正文**：v7 起批注卡片随 `renderDoc()` 生成，`renderCards()` 是空函数；改 `state.filter` 后要 `renderDoc()`，否则点了「失效/已处理」什么都不变。
 - **进入即跳过**：`reload()` 首次加载时按 `firstUnreviewed()` 选起跳段（全标完则退到未读段/首段），底部提示"已跳过 n 段已审，从 P# 继续"。注意只在首次加载做，保存批注后的 `reload()` 不能跳走。
 
-## 行间公式（v7.8）
+## 公式渲染（v7.9）
 
-整段只有 `$$…$$` 的段落用 KaTeX 渲染（`templates/static/vendor/katex/`，本地自带，离线可用），编号 `\tag{12-1a}` 也照常显示。原文放在隐藏的 `.ptext.mathsrc` 里，锚点偏移不变；这种段落**不能划词**，只能用段号提整段意见。行内 `$…$` 仍按原文显示。
+KaTeX 随模板自带（`templates/static/vendor/katex/`，约 0.6 MB，离线可用）：
+
+- 行内 `$…$` 在当前段就地渲染；选区偏移按 `indexOf` 回退到原文，普通句子仍能精确锚定，跨公式的选区会降级成 orphan（有提示）；
+- 整段 `$$…$$` 渲染成公式，`\tag{12-1a}` 编号照常显示；原文放隐藏的 `.ptext.mathsrc`，该段只支持整段意见；
+- 批注卡片引文里的 `$…$` 也渲染，不再露出 TeX。
 
 ## Pitfalls
 
@@ -61,6 +65,7 @@ updated: "2026-11-12"
 - **别用 `data-top=1e9` 表示"排到最底"**：浏览器会钳制成 33554432px，页面高度爆炸。`layoutCards()` 按 `(是否全文意见, top)` 两级排序。
 - **编辑批注时传 `para_anchor`/`quote_anchor`**，不能传 `para`/`quote`——后者是原始字段，传错会把句级批注写成全文批注。
 - **改完服务代码必须重启**：`fuser -k <端口>/tcp` 后再起，否则测到的还是旧逻辑；静态文件走缓存时 `Ctrl+Shift+R`。
+- **行内公式别改 DOM 文本结构**：KaTeX 会把 `$…$` 换成自己的 span，正文偏移只能靠 `indexOf` 兜底；`highlightFragment` 仍按原文算，别拿渲染后的 `textContent` 做锚点。
 - **公式段别删原文**：`.mathbox` 只是渲染层，隐藏的 `.mathsrc` 必须保留原 TeX，否则 `offset` 全乱；KaTeX 只对「整段是 $$…$$」生效，别对行内 `$…$` 用，否则选区偏移算不准。
 - **`start.sh` 不要写死解释器**：用 `${PYTHON:-python3}`，别把某台机器的 conda 路径带进模板。
 - **起跳位置不能靠 localStorage**：`已读` 是浏览器本地的浏览痕迹，不等于"改完了"；进入页面要按服务端 `review.json` 选段，否则换机器就又把已改段翻一遍。

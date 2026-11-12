@@ -207,7 +207,9 @@ function toast(msg, ms = 2200) {
 function quoteLabel(q) {
   const t = (q || "").trim();
   if (/^\$\$[\s\S]*\$\$$/.test(t)) return "［公式］";
-  return t.slice(0, 120);
+  let s = t.length > 90 ? t.slice(0, 90) + "…" : t;
+  if (((s.match(/\$/g) || []).length) % 2) s = s.slice(0, s.lastIndexOf("$")) + "…";  // 别把 $…$ 截断
+  return s;
 }
 
 function esc(s) {
@@ -274,6 +276,19 @@ function inlineCard(n) {
 function isDisplayMath(text) {
   if (!/\$\$[\s\S]+?\$\$/.test(text)) return false;
   return text.replace(/\$\$[\s\S]+?\$\$/g, "").trim() === "";   // 去掉公式后没有别的字
+}
+
+/* 行内 $…$ 就地渲染；只画成 HTML，避免 MathML 副本把选区文本翻倍 */
+function renderMathIn(el) {
+  if (!window.renderMathInElement || !el.textContent.includes("$")) return;
+  try {
+    window.renderMathInElement(el, {
+      delimiters: [{ left: "$$", right: "$$", display: true },
+                   { left: "$", right: "$", display: false }],
+      throwOnError: false,
+      output: "html",
+    });
+  } catch (e) { /* 保留原文 */ }
 }
 
 function mathBox(text) {
@@ -464,6 +479,13 @@ function renderDoc() {
       el.append(inlineCard(n)); rendered.add(n.id); shownNotes++;
     }
     for (const n of whole) { el.append(inlineCard(n)); rendered.add(n.id); shownNotes++; }
+
+    // 行内公式：只处理正文片段，卡片与隐藏的公式原文不碰
+    if (isCur && !p.figure) {
+      el.querySelectorAll(".ptext").forEach((sp) => {
+        if (!sp.classList.contains("mathsrc")) renderMathIn(sp);
+      });
+    }
     docEl.appendChild(el);
   }
 
@@ -533,6 +555,9 @@ function cardEl(n) {
     <div class="body">${esc(n.text)}</div>
     ${n.status === "done" && n.reply ? `<div class="reply"><b>改：</b>${esc(n.reply)}</div>` : ""}
     ${(n.tags || []).length ? `<div class="tags">${n.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}`;
+  const qem = $(".quote em", c);
+  if (qem) renderMathIn(qem);          // 引文里的 $…$ 也照常显示
+
   c.addEventListener("click", (e) => {
     const a = e.target.closest("[data-a]")?.dataset.a;
     if (a === "done") return setStatus(n);
@@ -675,6 +700,8 @@ function openComposer(anchor, editId = null) {
       </div>
     </div>`;
   document.body.appendChild(c);
+  const qem = $(".quote em", c);
+  if (qem) renderMathIn(qem);
   const ta = $("textarea", c);
   ta.value = n ? n.text : "";
   state.tags = n ? [...(n.tags || [])] : [];
