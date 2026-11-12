@@ -124,12 +124,12 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .doc.focus .para{margin-bottom:26px}
 .doc .para.rev{background:color-mix(in srgb,#16a34a 5%,transparent);box-shadow:inset 3px 0 0 #16a34a}
 .doc .para.revstale{box-shadow:inset 3px 0 0 #b45309}
-.pmark{position:absolute;right:0;bottom:-19px;z-index:2;font:10.5px/1 system-ui,sans-serif;
+.pmark{position:absolute;right:0;bottom:-21px;z-index:2;font:13px/1 system-ui,sans-serif;
   color:var(--dim);background:var(--bg);border:1px dashed var(--line);border-radius:999px;
-  padding:3px 8px;cursor:pointer;opacity:0;transition:opacity .12s,border-color .12s}
+  padding:3px 8px;min-width:24px;text-align:center;cursor:pointer;opacity:0;transition:opacity .12s,border-color .12s}
 .doc .para:hover .pmark,.doc.focus .para.cur .pmark,.doc .para.rev .pmark,.doc .para.revstale .pmark{opacity:1}
 .pmark:hover{border-color:var(--accent);color:var(--accent)}
-.pmark.on{color:#15803d;border-color:#16a34a;border-style:solid;
+.pmark.on{color:#15803d;border-color:#16a34a;border-style:solid;font-weight:600;
   background:color-mix(in srgb,#16a34a 12%,transparent)}
 #f-done.on{color:#15803d;border-color:#16a34a;background:color-mix(in srgb,#16a34a 12%,transparent)}
 

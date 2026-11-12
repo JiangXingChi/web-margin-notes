@@ -61,10 +61,10 @@ async function toggleReview(i) {
   if (el) {
     el.classList.toggle("rev", done);
     const b = el.querySelector(".pmark");
-    if (b) { b.textContent = done ? "✓ 已改" : "标为已改"; b.classList.toggle("on", done); }
+    if (b) { b.textContent = done ? "☑ 已审" : "☐"; b.classList.toggle("on", done); }
   }
   syncDoneBtn();
-  toast(done ? `P${i} 已标为改完` : `P${i} 已撤销`);
+  toast(done ? `P${i} 已审` : `P${i} 取消已审`);
 }
 
 function syncDoneBtn() {
@@ -72,8 +72,8 @@ function syncDoneBtn() {
   if (!b) return;
   const on = isReviewed(state.cur);
   b.classList.toggle("on", on);
-  b.textContent = on ? "✓ 本段已改" : "标本段为已改";
-  b.title = on ? "再点一次撤销（m）" : "标为改完，之后可跳过（m）";
+  b.textContent = on ? "☑ 已审" : "☐ 审完本段";
+  b.title = on ? "再点一次撤销（m）" : "标为审完，之后可跳过（m）";
 }
 
 function noteCount(i) {
@@ -300,8 +300,8 @@ function renderDoc() {
 
     const mk = document.createElement("button");
     mk.className = "pmark" + (isReviewed(p.i) ? " on" : "");
-    mk.textContent = isReviewed(p.i) ? "✓ 已改" : "标为已改";
-    mk.title = isReviewed(p.i) ? "本段已审，再点撤销（m）" : "标为改完，之后可跳过（m）";
+    mk.textContent = isReviewed(p.i) ? "☑ 已审" : "☐";
+    mk.title = isReviewed(p.i) ? "本段已审，再点撤销（m）" : "标为审完，之后可跳过（m）";
     mk.onclick = (e) => { e.stopPropagation(); toggleReview(p.i); };
     el.append(mk);
     if (isReviewed(p.i)) el.classList.add("rev");
