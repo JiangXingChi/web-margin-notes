@@ -23,6 +23,7 @@ CFG = os.path.join(DATA, "config.json")
 NOTES = os.path.join(DATA, "notes.json")
 BAK = NOTES + ".bak"
 REVIEW = os.path.join(DATA, "review.json")   # 段落级"已审"标记，按段落文本哈希判断是否过期
+CHANGES = os.path.join(DATA, "changes.json") # 没有对应批注的改动（如全文统一用词），供页面标出改在哪
 LOCK = threading.Lock()
 
 app = Flask(__name__, static_folder=os.path.join(BASE, "static"), static_url_path="/s")
@@ -68,6 +69,24 @@ def save_notes(data):
 
 def now():
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def load_changes():
+    """无批注的改动记录：[{id, para, before, after, round, why, at}]。
+
+    批注条目用 changed 字段自己定位；代理人顺手做的统一用词、去口头语这类
+    改动没有批注可挂，就记在这里，页面按 after 在段内标出、并列出改前改后。
+    """
+    if not os.path.exists(CHANGES):
+        return {"version": 1, "changes": []}
+    with open(CHANGES, encoding="utf-8") as f:
+        data = json.load(f)
+    data.setdefault("changes", [])
+    return data
+
+
+def save_changes(data):
+    save_json(CHANGES, data)
 
 
 def load_review(doc_path):
@@ -374,7 +393,48 @@ def api_doc():
         "reviewed_stale": stale,
     }
     doc["notes"] = notes
+    doc["changes"] = load_changes()["changes"]
     return jsonify(doc)
+
+
+@app.post("/api/changes")
+def api_changes_add():
+    """登记一条没有批注的改动：para 段号、before 改前、after 改后、round 轮次。"""
+    body = request.get_json(force=True) or {}
+    try:
+        para = int(body.get("para") or 0)
+    except (TypeError, ValueError):
+        return jsonify(error="para 必须是段号"), 400
+    before = (body.get("before") or "").strip()
+    after = (body.get("after") or "").strip()
+    if not para or not after:
+        return jsonify(error="para 与 after 不能为空"), 400
+    with LOCK:
+        data = load_changes()
+        item = {
+            "id": "c_" + uuid.uuid4().hex[:6],
+            "para": para,
+            "before": before,
+            "after": after,
+            "round": body.get("round"),
+            "why": (body.get("why") or "").strip(),
+            "at": now(),
+        }
+        data["changes"].append(item)
+        save_changes(data)
+        return jsonify(ok=True, id=item["id"])
+
+
+@app.delete("/api/changes/<cid>")
+def api_changes_del(cid):
+    with LOCK:
+        data = load_changes()
+        keep = [c for c in data["changes"] if c["id"] != cid]
+        if len(keep) == len(data["changes"]):
+            return jsonify(error="找不到该记录"), 404
+        data["changes"] = keep
+        save_changes(data)
+        return jsonify(ok=True)
 
 
 @app.post("/api/notes")

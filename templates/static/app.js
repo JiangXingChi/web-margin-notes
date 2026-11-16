@@ -12,6 +12,7 @@ const state = {
   cur: 1,          // 逐段模式的当前段
   read: new Set(), // 已读段落号（本机）
   review: {},      // 段落审核状态（服务端 review.json）：{para: {state:"done"|"stale", at}}
+  changes: [],     // 没有批注托着的改动（服务端 changes.json），页面上按 after 标出
   showCtx: false,
 };
 const TAGS = ["数字", "术语", "结构", "文字", "越界", "删"];
@@ -270,6 +271,7 @@ function renderSeg(text, bold, marks, from, to) {
     .map(([a, b]) => [Math.max(0, a - from), Math.min(seg.length, b - from)])
     .filter(([a, b]) => b > a);
   const ms = marks
+    .filter((m) => m.e > from && m.s < to)      // 只留与本切片真正重叠的，别把前半段的标记拽到段首
     .map((m) => ({ ...m, s: Math.max(0, m.s - from), e: Math.min(seg.length, m.e - from) }))
     .filter((m) => m.e > m.s);
   return renderRich(seg, bs, ms);
@@ -341,7 +343,8 @@ function renderRich(text, bold, marks) {
         ((a.status === "done" ? 1 : 0) - (b.status === "done" ? 1 : 0)));
     for (const mk of covering) {
       const el = document.createElement("mark");
-      el.className = "hl" + (mk.anchor === "fuzzy" ? " fuzzy" : "") + (mk.status === "done" ? " done" : "");
+      el.className = "hl" + (mk.anchor === "fuzzy" ? " fuzzy" : "")
+        + (mk.status === "done" ? " done" : "") + (mk.status === "chg" ? " chg" : "");
       el.dataset.id = mk.id;
       el.title = mk.text || "";
       el.appendChild(node);
@@ -367,15 +370,49 @@ function markNotes(p) {
   });
 }
 
+/* 没有批注托着的改动（统一用词、去口头语等）：按 after 在段内标出，
+   段落下方再列一行「改前 → 改后」，作者既能看到改在哪，也能核对改成什么。 */
+function changeMarks(p) {
+  const out = [];
+  for (const c of state.changes || []) {
+    if (c.para !== p.i || !c.after) continue;
+    const i = p.text.indexOf(c.after);
+    if (i < 0) continue;
+    out.push({
+      id: c.id, s: i, e: i + c.after.length, anchor: "exact", status: "chg",
+      text: `第${c.round || "?"}轮改前：${c.before || "—"}`,
+      before: c.before, after: c.after, round: c.round, why: c.why,
+    });
+  }
+  return out;
+}
+
+function changeLine(p) {
+  const list = (state.changes || []).filter((c) => c.para === p.i && c.after);
+  if (!list.length) return null;
+  const box = document.createElement("div");
+  box.className = "chgline";
+  for (const c of list) {
+    const row = document.createElement("div");
+    row.className = "chgrow";
+    row.innerHTML = `<span class="chgwho">第 ${c.round || "?"} 轮</span>`
+      + `<s>${esc(c.before || "—")}</s><span class="arrow">→</span><b>${esc(c.after)}</b>`
+      + (c.why ? `<span class="chgwhy">（${esc(c.why)}）</span>` : "");
+    box.appendChild(row);
+  }
+  return box;
+}
+
 function highlightFragment(text, paraNo, bold) {
   const p = state.doc.paras[paraNo - 1] || { i: paraNo, text };
   const marks = markNotes(p)
     .map((n) => ({ n, s: n.offset, e: n.offset + n.quote_anchor.length }))
     .filter((x) => x.s >= 0 && x.e <= text.length && x.e > x.s)
     .sort((a, b) => a.s - b.s);
-  return renderRich(text, bold || [], marks.map((m) => ({
+  const noteMarks = marks.map((m) => ({
     ...m, id: m.n.id, anchor: m.n.anchor, status: m.n.status, text: m.n.text,
-  })));
+  }));
+  return renderRich(text, bold || [], noteMarks.concat(changeMarks(p)));
 }
 
 function renderDoc() {
@@ -464,7 +501,8 @@ function renderDoc() {
         n, s: n.offset, e: n.offset + (n.quote_anchor || "").length,
         id: n.id, anchor: n.anchor, status: n.status, text: n.text,
       })).map((m) => ({ ...m, e: Math.min(m.e, p.text.length) }))
-        .filter((m) => m.e > m.s && m.s >= 0);
+        .filter((m) => m.e > m.s && m.s >= 0)
+        .concat(changeMarks(p));
       const groups = new Map();
       for (const m of inline.map((n) => marks.find((x) => x.id === n.id)).filter(Boolean)) {
         const cut = cutPoint(p.text, m.e);
@@ -496,6 +534,9 @@ function renderDoc() {
       el.append(inlineCard(n)); rendered.add(n.id); shownNotes++;
     }
     for (const n of whole) { el.append(inlineCard(n)); rendered.add(n.id); shownNotes++; }
+
+    const cl = isCur ? changeLine(p) : null;
+    if (cl) el.append(cl);
 
     // 行内公式：只处理正文片段，卡片与隐藏的公式原文不碰
     if (isCur && !p.figure) {
@@ -931,6 +972,7 @@ async function reload() {
   state.doc = d;
   state.notes = d.notes;
   state.review = d.review || {};
+  state.changes = d.changes || [];
   document.title = `${d.app_title} · ${d.title}`;
   $("#doc-title").textContent = `${d.app_title} · ${d.title}`;
   $("#doc-meta").textContent = `${d.totals.chars} 字 · ${d.totals.paras} 段 · ${d.hash} · ${d.mtime}`;

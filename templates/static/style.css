@@ -6,7 +6,7 @@
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#16181c; --fg:#e8e6e3; --dim:#9aa1a9; --line:#2c3037;
-         --hl:#5c4a12; --hl-on:#7a6316; --hl-done:#17324d; --card:#1e2126; --accent:#e9a23b;
+         --hl:#5c4a12; --hl-on:#7a6316; --hl-done:#17324d; --hl-chg:#2c2447; --card:#1e2126; --accent:#e9a23b;
          --orphan:#3a2320; --orphan-line:#7a4b45; }
 }
 *{box-sizing:border-box}
@@ -50,6 +50,15 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .hl.on{background:var(--hl-on)}
 .hl.fuzzy{outline:1px dashed var(--orphan-line)}
 .hl.done{color:inherit;font-weight:inherit;background:var(--hl-done);box-shadow:inset 0 -2px 0 #3b82f6}
+/* 无批注的改动（统一用词等）：浅紫，与批注改动的蓝块区分 */
+.hl.chg{color:inherit;font-weight:inherit;background:var(--hl-chg,#ede9fe);box-shadow:inset 0 -2px 0 #8b5cf6}
+.chgline{margin:3px 0 10px 44px;font-family:system-ui,sans-serif;font-size:calc(11.5px * var(--fs,1));
+  color:var(--dim);line-height:1.6;border-left:2px solid #8b5cf6;padding:1px 0 1px 8px}
+.chgline .chgwho{color:#7c3aed;margin-right:6px;font-variant-numeric:tabular-nums}
+.chgline s{opacity:.7}
+.chgline .arrow{margin:0 5px;opacity:.6}
+.chgline b{font-weight:600;color:var(--fg)}
+.chgline .chgwhy{opacity:.8}
 .ppin{background:color-mix(in srgb,var(--accent) 12%,transparent);border-bottom:1px solid var(--accent)}
 
 /* 边注列 */
