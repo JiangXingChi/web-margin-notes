@@ -132,12 +132,19 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .doc.focus .para{margin-bottom:26px}
 .doc .para.rev{background:color-mix(in srgb,#16a34a 5%,transparent);box-shadow:inset 3px 0 0 #16a34a}
 .doc .para.revstale{box-shadow:inset 3px 0 0 #b45309}
-.pmark{position:absolute;left:0;top:1.6em;z-index:2;font:10px/1 system-ui,sans-serif;
-  color:var(--dim);background:var(--bg);border:1px dashed var(--line);border-radius:999px;
-  padding:2px 3px;min-width:34px;text-align:center;white-space:nowrap;cursor:pointer;opacity:.3;
-  transition:opacity .12s,border-color .12s}
+.pmark{position:absolute;left:0;top:1.3em;z-index:3;
+  font-size:calc(9.5px * var(--fs,1));line-height:1;font-family:system-ui,sans-serif;
+  color:var(--dim);background:var(--bg);border:1px dashed var(--line);border-radius:8px;
+  padding:3px 2px;width:calc(44px * var(--fs,1));min-height:calc(38px * var(--fs,1));
+  display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  white-space:nowrap;cursor:pointer;opacity:.65;
+  transition:opacity .12s,border-color .12s,background .12s}
+.pmark b{font-size:calc(15px * var(--fs,1));line-height:1;font-weight:600}
+.pmark i{font-style:normal;line-height:1;letter-spacing:.02em}
+/* 点击热区比看到的框再大一圈，小屏/触控也好点 */
+.pmark::after{content:"";position:absolute;inset:-7px;border-radius:12px}
 .doc .para:hover .pmark,.doc.focus .para.cur .pmark,.doc .para.rev .pmark,.doc .para.revstale .pmark{opacity:1}
-.pmark:hover{opacity:1;border-color:var(--accent);color:var(--accent)}
+.pmark:hover{opacity:1;border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg))}
 .pmark.stale{color:#b45309;border-color:#b45309;border-style:dashed}
 .pmark.on{color:#15803d;border-color:#16a34a;border-style:solid;font-weight:600;
   background:color-mix(in srgb,#16a34a 12%,transparent)}

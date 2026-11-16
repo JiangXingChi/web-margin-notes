@@ -67,7 +67,8 @@ async function toggleReview(i) {
     el.classList.toggle("revstale", !done && isStale(i));
     const b = el.querySelector(".pmark");
     if (b) {
-      b.textContent = done ? "☑ 已审" : isStale(i) ? "↻" : "☐";
+      b.innerHTML = done ? "<b>☑</b><i>已审</i>"
+        : isStale(i) ? "<b>↻</b><i>重审</i>" : "<b>☐</b><i>未审</i>";
       b.classList.toggle("on", done);
       b.classList.toggle("stale", !done && isStale(i));
     }
@@ -370,7 +371,8 @@ function renderDoc() {
 
     const mk = document.createElement("button");
     mk.className = "pmark" + (isReviewed(p.i) ? " on" : "") + (isStale(p.i) ? " stale" : "");
-    mk.textContent = isReviewed(p.i) ? "☑ 已审" : isStale(p.i) ? "↻" : "☐";
+    mk.innerHTML = isReviewed(p.i) ? "<b>☑</b><i>已审</i>"
+      : isStale(p.i) ? "<b>↻</b><i>重审</i>" : "<b>☐</b><i>未审</i>";
     mk.title = isReviewed(p.i) ? "本段已审，再点撤销（m）"
       : isStale(p.i) ? "正文改过了，需重看；点一下重新标为审完（m）"
       : "标为审完，之后可跳过（m）";
