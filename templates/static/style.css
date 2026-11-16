@@ -1,4 +1,5 @@
 :root{
+  --fs:1;                      /* 字号缩放：底栏 A− / A＋，5% 一档 */
   --bg:#fbfaf7; --fg:#1f2328; --dim:#6b7280; --line:#e5e2dc;
   --hl:#ffd08a; --hl-on:#ffb04d; --hl-done:#d9efdf; --card:#ffffff; --accent:#b45309;
   --orphan:#fdecea; --orphan-line:#e0a39c;
@@ -36,7 +37,7 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 @media (max-width:820px){ .layout{padding:16px 12px 100px} .card.inline{margin-left:28px} }
 
 /* 正文 */
-.doc{font-size:16.5px;letter-spacing:.01em}
+.doc{font-size:calc(16.5px * var(--fs,1));letter-spacing:.01em}
 .doc .para{position:relative;text-indent:2em;margin:0 0 14px;padding-left:44px}
 .doc .para:hover{background:color-mix(in srgb,var(--accent) 4%,transparent)}
 .pno{position:absolute;left:0;top:.45em;width:34px;text-indent:0;text-align:right;
@@ -52,7 +53,7 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .ppin{background:color-mix(in srgb,var(--accent) 12%,transparent);border-bottom:1px solid var(--accent)}
 
 /* 边注列 */
-.margin{position:relative;font-family:system-ui,sans-serif;font-size:13px}
+.margin{position:relative;font-family:system-ui,sans-serif;font-size:calc(13px * var(--fs,1))}
 .card{position:absolute;left:0;right:0;background:var(--card);border:1px solid var(--line);
   border-left:3px solid var(--accent);border-radius:8px;padding:9px 10px;
   box-shadow:0 1px 2px rgba(0,0,0,.05);transition:box-shadow .15s,border-color .15s}
@@ -61,23 +62,23 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .card.done .quote em{background:var(--hl-done)}
 .card.orphan{border-left-color:var(--orphan-line);background:var(--orphan)}
 .card.empty{border-left-color:var(--line);opacity:.9}
-.card .head{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:11px;margin-bottom:4px}
+.card .head{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:calc(11px * var(--fs,1));margin-bottom:4px}
 .card .who{font:11px ui-monospace,monospace}
 .card .quote{color:var(--dim);border-left:2px solid var(--line);padding-left:6px;margin:4px 0 6px;
-  font-size:12px;line-height:1.5;max-height:3em;overflow:hidden;
+  font-size:calc(12px * var(--fs,1));line-height:1.5;max-height:3em;overflow:hidden;
   overflow-wrap:anywhere;word-break:break-word}
 .card .quote em{font-style:normal;background:var(--hl);color:var(--fg)}
 .card .body{white-space:pre-wrap;line-height:1.6}
 .card .tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
-.tag{font-size:10.5px;padding:2px 6px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
-.card .reply{margin-top:6px;padding:5px 7px;border-radius:5px;font-size:12px;line-height:1.55;
+.tag{font-size:calc(10.5px * var(--fs,1));padding:2px 6px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
+.card .reply{margin-top:6px;padding:5px 7px;border-radius:5px;font-size:calc(12px * var(--fs,1));line-height:1.55;
   background:color-mix(in srgb,#16a34a 10%,transparent);border-left:2px solid #16a34a;color:var(--fg)}
 .card .reply b{color:#15803d;font-weight:600}
 .card .acts{display:flex;gap:2px;margin-left:auto}
 .icon{width:22px;height:22px;display:grid;place-items:center;border:0;background:transparent;
-  color:var(--dim);border-radius:5px;cursor:pointer;font-size:14px;line-height:1}
+  color:var(--dim);border-radius:5px;cursor:pointer;font-size:calc(14px * var(--fs,1));line-height:1}
 .icon:hover{background:color-mix(in srgb,var(--fg) 8%,transparent);color:var(--fg)}
-.orphan-note{color:#b3261e;font-size:11px;margin-top:4px}
+.orphan-note{color:#b3261e;font-size:calc(11px * var(--fs,1));margin-top:4px}
 @media (prefers-color-scheme: dark){ .orphan-note{color:#ff9a90} }
 
 /* 编辑器 */
@@ -87,8 +88,8 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
   border-radius:6px;padding:7px 8px;outline:none}
 .editor textarea:focus{border-color:var(--accent)}
 .editor .row{display:flex;gap:4px;margin-top:5px;align-items:center;flex-wrap:wrap}
-.editor .hint{color:var(--dim);font-size:10.5px;margin-left:auto}
-.tagbtn{font-size:10.5px;padding:3px 7px;border-radius:999px;border:1px solid var(--line);
+.editor .hint{color:var(--dim);font-size:calc(10.5px * var(--fs,1));margin-left:auto}
+.tagbtn{font-size:calc(10.5px * var(--fs,1));padding:3px 7px;border-radius:999px;border:1px solid var(--line);
   background:transparent;color:var(--dim);cursor:pointer}
 .tagbtn.on{border-color:var(--accent);color:var(--accent)}
 
@@ -105,8 +106,8 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .mathbox .katex{font-size:1.05em}
 
 /* 参考文献折叠区 */
-.refs{margin-top:28px;border-top:1px solid var(--line);padding-top:12px;color:var(--dim);font-size:12px;text-indent:0}
-.refs summary{cursor:pointer;font-family:system-ui,sans-serif;font-size:12px;color:var(--dim)}
+.refs{margin-top:28px;border-top:1px solid var(--line);padding-top:12px;color:var(--dim);font-size:calc(12px * var(--fs,1));text-indent:0}
+.refs summary{cursor:pointer;font-family:system-ui,sans-serif;font-size:calc(12px * var(--fs,1));color:var(--dim)}
 .refs p{margin:6px 0;line-height:1.6;text-indent:0}
 
 /* 段落地图 */
@@ -147,8 +148,8 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .doc.focus .para{max-width:640px}
 #margin:empty{display:none}
 .doc.focus .para{margin:0 0 10px}
-.doc.focus .para.cur{font-size:17px;line-height:2}
-.doc.focus .para.ctx{opacity:.4;font-size:15px;line-height:1.9}
+.doc.focus .para.cur{font-size:calc(17px * var(--fs,1));line-height:2}
+.doc.focus .para.ctx{opacity:.4;font-size:calc(15px * var(--fs,1));line-height:1.9}
 .doc.focus .para.ctx .pno{opacity:.6}
 .focusbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:70;display:flex;
   gap:6px;align-items:center;padding:7px 10px;background:var(--card);border:1px solid var(--line);
@@ -165,14 +166,14 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .figbtn{font:11px system-ui,sans-serif;color:var(--dim);background:transparent;border:1px dashed var(--line);
   border-radius:999px;padding:2px 10px;cursor:pointer}
 .figbtn:hover{color:var(--accent);border-color:var(--accent)}
-.ptext table.mdtable{border-collapse:collapse;font-size:13px;line-height:1.7;margin:2px 0;width:100%}
+.ptext table.mdtable{border-collapse:collapse;font-size:calc(13px * var(--fs,1));line-height:1.7;margin:2px 0;width:100%}
 .ptext table.mdtable th,.ptext table.mdtable td{border:1px solid var(--line);padding:3px 8px;
   text-align:left;vertical-align:top}
 .ptext table.mdtable th{background:color-mix(in srgb,var(--fg) 6%,transparent);font-weight:600}
 /* 小标题（v6.1） */
 .ptext.hd1,.ptext.hd2,.ptext.hd3,.ptext.hd4{font-weight:600;letter-spacing:.01em}
-.ptext.hd1{font-size:19px}.ptext.hd2{font-size:17px}.ptext.hd3{font-size:16px}.ptext.hd4{font-size:15px}
-.doc.focus .para.cur .ptext.hd2,.doc.focus .para.cur .ptext.hd3{font-size:18px}
+.ptext.hd1{font-size:calc(19px * var(--fs,1))}.ptext.hd2{font-size:calc(17px * var(--fs,1))}.ptext.hd3{font-size:calc(16px * var(--fs,1))}.ptext.hd4{font-size:calc(15px * var(--fs,1))}
+.doc.focus .para.cur .ptext.hd2,.doc.focus .para.cur .ptext.hd3{font-size:calc(18px * var(--fs,1))}
 
 /* 行内批注（v7）：卡片跟着被批注的句子走，不再占用右侧边注列 */
 .layout{display:block;max-width:820px;margin:0 auto;padding:18px 20px 120px}
@@ -189,9 +190,12 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .doc .para .ptext{white-space:pre-wrap}
 /* 行内卡片压缩（v7.1） */
 .card.inline{padding:6px 10px;border-radius:7px}
-.card.inline .head{margin-bottom:2px;font-size:10.5px;gap:5px}
-.card.inline .quote{margin:2px 0 4px;padding-left:5px;font-size:11.5px;max-height:3em}
-.card.inline .body{font-size:12.5px;line-height:1.5}
-.card.inline .reply{margin-top:4px;padding:3px 6px;font-size:11.5px;line-height:1.45}
+.card.inline .head{margin-bottom:2px;font-size:calc(10.5px * var(--fs,1));gap:5px}
+.card.inline .quote{margin:2px 0 4px;padding-left:5px;font-size:calc(11.5px * var(--fs,1));max-height:3em}
+.card.inline .body{font-size:calc(12.5px * var(--fs,1));line-height:1.5}
+.card.inline .reply{margin-top:4px;padding:3px 6px;font-size:calc(11.5px * var(--fs,1));line-height:1.45}
 .card.inline .acts{gap:2px}
-.card.inline .icon{width:18px;height:18px;line-height:18px;font-size:11px}
+.card.inline .icon{width:18px;height:18px;line-height:18px;font-size:calc(11px * var(--fs,1))}
+
+/* 底栏字号键：等宽，避免 A− / A＋ 抖动 */
+.fsbtn{min-width:34px;text-align:center;font-family:system-ui,sans-serif}

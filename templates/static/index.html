@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>批注</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="/s/style.css?v=7">
+<link rel="stylesheet" href="/s/style.css?v=9">
 <link rel="stylesheet" href="/s/vendor/katex/katex.min.css">
 </head>
 <body>
@@ -42,10 +42,8 @@
   <span class="fpos" id="f-pos">P1 / 24</span>
   <button class="btn" id="f-next" title="下一段（j / ↓）">›</button>
   <span class="fdiv"></span>
-  <button class="btn" id="f-note" title="下一条批注（n）">下一条批注</button>
-  <button class="btn" id="f-done" title="标为审完，之后可跳过（m）">☐ 审完本段</button>
-  <button class="btn" id="f-undone" title="跳到第一个未标已改的段（u）">下一段待审</button>
-  <button class="btn" id="f-unread" title="跳到第一个未读段">未读</button>
+  <button class="btn fsbtn" id="fs-minus" title="字号变小">A−</button>
+  <button class="btn fsbtn" id="fs-plus" title="字号变大">A＋</button>
   <label class="fctx"><input type="checkbox" id="f-ctx"> 带上下段</label>
 </div>
 
@@ -54,6 +52,6 @@
 
 <script src="/s/vendor/katex/katex.min.js"></script>
 <script src="/s/vendor/katex/contrib/auto-render.min.js"></script>
-<script src="/s/app.js?v=8"></script>
+<script src="/s/app.js?v=10"></script>
 </body>
 </html>

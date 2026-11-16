@@ -72,7 +72,6 @@ async function toggleReview(i) {
       b.classList.toggle("stale", !done && isStale(i));
     }
   }
-  syncDoneBtn();
   toast(done ? `P${i} 已审` : `P${i} 取消已审`);
 }
 
@@ -91,14 +90,6 @@ function currentPara() {
   return state.mode === "focus" ? state.cur : paraAtViewport();
 }
 
-function syncDoneBtn() {
-  const b = $("#f-done");
-  if (!b) return;
-  const on = isReviewed(state.cur);
-  b.classList.toggle("on", on);
-  b.textContent = on ? "☑ 已审" : "☐ 审完本段";
-  b.title = on ? "再点一次撤销（m）" : "标为审完，之后可跳过（m）";
-}
 
 function noteCount(i) {
   return state.notes.filter((n) => n.para_anchor === i).length;
@@ -141,8 +132,6 @@ function renderMap() {
 }
 
 function gotoPara(i, opts = {}) {
-  // 逐段翻页时把状态同步到「本段已改」按钮
-  queueMicrotask(syncDoneBtn);
   const total = state.doc.paras.length;
   i = Math.min(total, Math.max(1, i));
   if (state.mode === "focus" && opts.markRead !== false && state.cur !== i) markRead(state.cur);
@@ -187,7 +176,6 @@ function setMode(mode) {
   renderDoc();
   renderCards();
   renderMap();
-  syncDoneBtn();
 }
 
 /* ------------------------------------------------------------ 工具 */
@@ -772,9 +760,20 @@ $("#btn-mode").onclick = () => setMode(state.mode === "focus" ? "all" : "focus")
 $("#f-prev").onclick = () => gotoPara(state.cur - 1);
 $("#f-next").onclick = () => gotoPara(state.cur + 1);
 $("#f-ctx").onchange = (e) => { state.showCtx = e.target.checked; renderDoc(); layoutCards(); };
-$("#f-note").onclick = () => jumpNextNote(1);
-$("#f-done").onclick = () => toggleReview(currentPara());
-$("#f-undone").onclick = () => jumpNextUnreviewed();
+
+/* 字号：正文与批注卡同比放缩（--fs），记在 localStorage */
+const FS_KEY = "wmn:fs";
+let fsValue = 1;
+function applyFs(v) {
+  fsValue = Math.min(1.5, Math.max(0.8, Math.round(v * 100) / 100));
+  document.documentElement.style.setProperty("--fs", fsValue);
+  localStorage.setItem(FS_KEY, String(fsValue));
+  return fsValue;
+}
+const savedFs = parseFloat(localStorage.getItem(FS_KEY));
+applyFs(Number.isFinite(savedFs) ? savedFs : 1);
+$("#fs-minus").onclick = () => applyFs(fsValue - 0.05);
+$("#fs-plus").onclick = () => applyFs(fsValue + 0.05);
 function jumpNextUnreviewed() {
   const list = state.doc.paras;
   const start = currentPara();
@@ -784,10 +783,6 @@ function jumpNextUnreviewed() {
   if (state.mode !== "focus") setMode("focus");
   gotoPara(next.i);
 }
-$("#f-unread").onclick = () => {
-  const p = state.doc.paras.find((x) => !state.read.has(x.i));
-  if (p) { setMode("focus"); gotoPara(p.i); } else toast("全部读完了");
-};
 function jumpNextNote(dir = 1) {
   const withNote = [...new Set(state.notes
     .filter((n) => n.para_anchor > 0 && (state.filter !== "open" || n.status === "open"))
@@ -919,7 +914,6 @@ async function reload() {
   renderDoc();
   renderCards();
   renderMap();
-  syncDoneBtn();
 }
 
 window.addEventListener("resize", () => layoutCards());
