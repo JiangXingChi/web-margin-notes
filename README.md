@@ -69,7 +69,7 @@ cd ~/my-review && bash start.sh
 
 `data/notes.json` 是批注的唯一真源，`data/review.json` 是段落审核状态：
 
-`changed`（可选）是改后的新句子：改写会让旧引文找不到，页面靠它把青块落到新文本上。
+`changed`（可选）是改后的新句子：改写会让旧引文找不到，页面靠它把蓝块落到新文本上。`round` 是轮次号，页面只给最新一轮的改动标色。
 
 ```json
 {"doc": "…/chapter1.md", "version": 1,
