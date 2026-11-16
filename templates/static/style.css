@@ -1,12 +1,12 @@
 :root{
   --fs:1;                      /* 字号缩放：底栏 A− / A＋，5% 一档 */
   --bg:#fbfaf7; --fg:#1f2328; --dim:#6b7280; --line:#e5e2dc;
-  --hl:#ffd08a; --hl-on:#ffb04d; --hl-done:#d9efdf; --card:#ffffff; --accent:#b45309;
+  --hl:#fde68a; --hl-on:#fcd34d; --hl-done:#e9d5ff; --card:#ffffff; --accent:#b45309;
   --orphan:#fdecea; --orphan-line:#e0a39c;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#16181c; --fg:#e8e6e3; --dim:#9aa1a9; --line:#2c3037;
-         --hl:#5c3f14; --hl-on:#7d5a17; --hl-done:#1e3a26; --card:#1e2126; --accent:#e9a23b;
+         --hl:#5c4a12; --hl-on:#7a6316; --hl-done:#3f2f6b; --card:#1e2126; --accent:#e9a23b;
          --orphan:#3a2320; --orphan-line:#7a4b45; }
 }
 *{box-sizing:border-box}
@@ -44,10 +44,10 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
   font:11px/1.6 ui-monospace,monospace;color:var(--dim);cursor:pointer;user-select:none}
 .pno:hover{color:var(--accent)}
 .pno b{font-weight:600}
-/* 待处理：只改字色，不铺底不划线；已改：只铺浅底，两种状态各占一个通道 */
-.hl{background:transparent;border-radius:2px;padding:0;cursor:pointer;
-  color:var(--accent);font-weight:600}
-.hl.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+/* 待处理＝黄色底块；已改＝紫色底块（原「待处理字色加橙、已改铺浅绿」作废） */
+.hl{background:var(--hl);border-radius:2px;padding:0 1px;cursor:pointer;
+  color:inherit;font-weight:600}
+.hl.on{background:var(--hl-on)}
 .hl.fuzzy{outline:1px dashed var(--orphan-line)}
 .hl.done{color:inherit;font-weight:inherit;background:var(--hl-done)}
 .ppin{background:color-mix(in srgb,var(--accent) 12%,transparent);border-bottom:1px solid var(--accent)}
