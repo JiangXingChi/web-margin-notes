@@ -345,10 +345,19 @@ function renderRich(text, bold, marks) {
   return frag;
 }
 
+/* 高亮用的批注集合：当前筛选内的 + 「已改但这段还没审完」的。
+   后者不看筛选，保证作者总能顺着颜色找到刚改过的句子。 */
+function markNotes(p) {
+  return state.notes.filter((n) => {
+    if (n.para_anchor !== p.i || !n.quote_anchor || n.anchor === "orphan") return false;
+    if (visible(n)) return true;
+    return n.status === "done" && !isReviewed(p.i);
+  });
+}
+
 function highlightFragment(text, paraNo, bold) {
-  const marks = state.notes
-    // orphan 的 offset 不可信（常为 0），照画会在段首糊成一片，压住别的高亮
-    .filter((n) => n.para_anchor === paraNo && n.quote_anchor && n.anchor !== "orphan")
+  const p = state.doc.paras[paraNo - 1] || { i: paraNo, text };
+  const marks = markNotes(p)
     .map((n) => ({ n, s: n.offset, e: n.offset + n.quote_anchor.length }))
     .filter((x) => x.s >= 0 && x.e <= text.length && x.e > x.s)
     .sort((a, b) => a.s - b.s);
@@ -437,13 +446,15 @@ function renderDoc() {
       for (const n of inline) { el.append(inlineCard(n)); rendered.add(n.id); shownNotes++; }
     } else {
       // 按「被批注句」的句末切段，卡片插在切点之后
-      const marks = inline.map((n) => ({
+      // 高亮取「全部未失效批注」：已改的句子即使不在当前筛选里也要画出来，
+      // 作者才能顺着颜色回去复核；卡片仍只放当前筛选可见的条目。
+      const marks = markNotes(p).map((n) => ({
         n, s: n.offset, e: n.offset + (n.quote_anchor || "").length,
         id: n.id, anchor: n.anchor, status: n.status, text: n.text,
       })).map((m) => ({ ...m, e: Math.min(m.e, p.text.length) }))
         .filter((m) => m.e > m.s && m.s >= 0);
       const groups = new Map();
-      for (const m of marks) {
+      for (const m of inline.map((n) => marks.find((x) => x.id === n.id)).filter(Boolean)) {
         const cut = cutPoint(p.text, m.e);
         if (!groups.has(cut)) groups.set(cut, []);
         groups.get(cut).push(m.n);
