@@ -7,7 +7,7 @@
 检查项：
   1. /api/doc 可读，段落数 > 0，字数 > 0
   2. /api/notes 可读，字段齐全（id/para/status/text）
-  3. 每条批注的锚点状态属于 exact/relocated/fuzzy/orphan
+  3. 每条批注的锚点状态属于 exact/relocated/fuzzy/changed/orphan
   4. 段落审核标记：/api/doc 的 review 字段与 totals.reviewed 一致（v7.4）
   5. （可选）装了 playwright + chromium 时，检查边注与高亮对齐、无重叠
 退出码 0 = 全部通过。
@@ -49,7 +49,7 @@ def main(argv):
     anchors = {}
     for n in doc.get("notes", []):
         anchors[n.get("anchor")] = anchors.get(n.get("anchor"), 0) + 1
-    unknown = [k for k in anchors if k not in ("exact", "relocated", "fuzzy", "orphan")]
+    unknown = [k for k in anchors if k not in ("exact", "relocated", "fuzzy", "changed", "orphan")]
     if unknown:
         problems.append(f"未知锚点状态：{unknown}")
     print(f"批注 {len(doc.get('notes', []))} 条　锚点 {anchors or '—'}")
