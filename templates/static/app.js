@@ -104,6 +104,7 @@ function noteCount(i) {
 
 function renderMap() {
   const map = $("#map");
+  const mapinfo = $("#mapinfo");
   map.innerHTML = "";
   const cntBy = new Map(), fixedBy = new Set();
   for (const n of state.notes) {
@@ -134,9 +135,20 @@ function renderMap() {
   const orphan = state.notes.filter((n) => n.anchor === "orphan").length;
   const rev = state.doc.paras.filter((p) => isReviewed(p.i)).length;
   const stale = state.doc.paras.filter((p) => isStale(p.i)).length;
-  $("#mapinfo").textContent = `已读 ${read}/${total}　已审 ${rev}/${total}`
-    + (stale ? `（过期 ${stale}）` : "")
-    + `　待处理 ${open}　已改 ${fixed}` + (orphan ? `　失效 ${orphan}` : "");
+  // 统计行：两段进度与批注计数用竖线隔开，数字加粗，全宽一行放在地图下
+  mapinfo.innerHTML =
+    `<span>已读 <b>${read}/${total}</b></span>`
+    + `<span>已审 <b>${rev}/${total}</b>${stale ? `<span class="stale">（过期 ${stale}）</span>` : ""}</span>`
+    + `<span class="sep"></span>`
+    + `<span>待处理 <b>${open}</b></span>`
+    + `<span>已改 <b>${fixed}</b></span>`
+    + (orphan ? `<span>失效 <b>${orphan}</b></span>` : "");
+}
+
+/* 顶栏会换行，高度随窗口变；地图栏的 sticky 位置要跟着顶栏实际高度走 */
+function syncStickyTop() {
+  const tb = document.querySelector(".topbar");
+  if (tb) document.documentElement.style.setProperty("--toph", tb.offsetHeight + "px");
 }
 
 function gotoPara(i, opts = {}) {
@@ -942,7 +954,7 @@ async function reload() {
   if (!d.paras.length) {
     docEl.innerHTML = '<p class="para empty-doc">文稿里还没有可批注的段落。</p>';
     $("#focusbar").hidden = true;
-    $("#mapinfo").textContent = "0 段";
+    $("#mapinfo").innerHTML = '<span>0 段</span>';
     return;
   }
   state.cur = Math.min(Math.max(1, state.cur || 1), d.paras.length);
@@ -952,6 +964,8 @@ async function reload() {
   renderMap();
 }
 
-window.addEventListener("resize", () => layoutCards());
+window.addEventListener("resize", () => { syncStickyTop(); layoutCards(); });
 document.fonts?.ready.then(() => layoutCards());
+syncStickyTop();
+new ResizeObserver(syncStickyTop).observe(document.querySelector(".topbar"));
 reload().catch((e) => toast("加载失败：" + e.message, 6000));

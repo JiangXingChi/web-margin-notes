@@ -1,7 +1,7 @@
 ---
 name: "web-margin-notes"
 description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态；作者可手动标「这段改完了」，下次打开自动跳过。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、标已改/段落审完、下次别再让我看这些段、annotate a markdown draft with margin comments、mark paragraphs as reviewed、read annotation feedback and revise。"
-version: 7.20
+version: 7.21
 license: MIT
 created: "2026-11-02"
 updated: "2026-11-16"
@@ -111,6 +111,7 @@ KaTeX 随模板自带（`templates/static/vendor/katex/`，约 0.6 MB，离线�
 - 已读进度按**文稿路径**记（`wmn:read:<path>`）；"待处理"计数不含 `orphan`，失效条目单列。
 - 打开页面（逐段模式）：底部显示 `P#`，该段不是第一个已改段（前面有已改段则自动跳过并在 toast 里报告跳过数）；全篇都标完时落回首段。
 - 公式选区（v7.20）：划行间公式（KaTeX `.mathbox`）也弹「＋ 本段意见」，落到该段整段意见（`quote=""`）；此前 `selectionInfo()` 遇到 `.mathsrc` 直接返回 null，作者选公式看不到按钮。
+- 地图栏 sticky（v7.21）：顶栏会换行、高度随窗口变（窄屏 121px，宽屏 93px），写死 `top:44px` 会让地图栏钻到顶栏底下重叠；改为 `top:var(--toph)`，JS 读顶栏实际高度并挂 `ResizeObserver` + `resize`。统计行改到地图下方整行（`flex:1 1 100%`），数字加粗、进度与批注计数用竖线分隔——原来是 `white-space:nowrap` 挤在地图右侧最后一行的位置，看着像浮字。
 - 段落审核（v7.4）：`POST /api/review/<para>` 标 `done` 后，`/api/doc` 的 `review` 出现该段、`totals.reviewed` 加一；再 POST `{"done": false}` 撤销。改这段正文后刷新，状态变 `stale`（`reviewed_stale` 加一），地图画虚线橙框。
 - `reply` 只在 `status=done` 时显示；撤回 done 时后端会清掉 `reply`/`doneAt`。
 

@@ -111,11 +111,11 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .refs p{margin:6px 0;line-height:1.6;text-indent:0}
 
 /* 段落地图 */
-.mapbar{position:sticky;top:44px;z-index:40;display:flex;gap:12px;align-items:center;
+.mapbar{position:sticky;top:var(--toph,44px);z-index:40;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;
   padding:6px 20px;background:color-mix(in srgb,var(--bg) 94%,transparent);
   border-bottom:1px solid var(--line);backdrop-filter:blur(6px);
   font-family:system-ui,sans-serif}
-.map{display:flex;gap:3px;flex-wrap:wrap;flex:1}
+.map{display:flex;gap:3px;flex-wrap:wrap;flex:1 1 100%}
 .cell{width:20px;height:16px;border-radius:3px;border:1px solid var(--line);background:transparent;
   font:9px/16px ui-monospace,monospace;color:var(--dim);text-align:center;cursor:pointer;padding:0}
 .cell:hover{border-color:var(--accent);color:var(--fg)}
@@ -126,7 +126,11 @@ kbd{font:11px/1 ui-monospace,monospace;padding:2px 4px;border:1px solid var(--li
 .cell.cur{outline:2px solid var(--accent);outline-offset:1px}
 .cell.rev{background:color-mix(in srgb,#16a34a 32%,transparent);border-color:#16a34a;color:#14532d;font-weight:700}
 .cell.revstale{outline:1px dashed #b45309;color:#b45309}
-.mapinfo{color:var(--dim);font-size:11px;white-space:nowrap}
+.mapinfo{flex:1 1 100%;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  font:11.5px/1.4 system-ui,sans-serif;color:var(--dim)}
+.mapinfo b{font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+.mapinfo .sep{width:1px;height:11px;background:var(--line)}
+.mapinfo .stale{color:var(--accent);opacity:.85}
 
 /* 段落审核（v7.4）：作者手动标"这段改完了"，下次打开可跳过 */
 .doc .para{transition:background .15s;margin-bottom:22px}
