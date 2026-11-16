@@ -351,7 +351,7 @@ function markNotes(p) {
   return state.notes.filter((n) => {
     if (n.para_anchor !== p.i || !n.quote_anchor || n.anchor === "orphan") return false;
     if (visible(n)) return true;
-    return n.status === "done" && !isReviewed(p.i);
+    return n.status === "done" && n.hl && !isReviewed(p.i);
   });
 }
 
@@ -618,8 +618,24 @@ function selectionInfo() {
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
   const range = sel.getRangeAt(0);
-  const ptext = range.startContainer.parentElement?.closest(".ptext");
-  if (!ptext || ptext.classList.contains("mathsrc")) return null;   // 公式段只支持整段意见
+  const startEl = range.startContainer.nodeType === 1
+    ? range.startContainer
+    : range.startContainer.parentElement;
+  const ptext = startEl?.closest(".ptext");
+  if (!ptext || ptext.classList.contains("mathsrc")) {
+    // 行间公式是 KaTeX 渲染出来的，查不回原文偏移；退成「本段意见」，至少能让作者开口
+    const paraEl = startEl?.closest(".para");
+    if (!paraEl || !startEl.closest(".mathbox")) return null;
+    return {
+      para: +paraEl.dataset.i,
+      quote: "",
+      prefix: "",
+      suffix: "",
+      offset: 0,
+      rect: range.getBoundingClientRect(),
+      math: true,
+    };
+  }
   const paraEl = ptext.closest(".para");
   if (!paraEl) return null;
   const paraNo = +paraEl.dataset.i;
@@ -672,6 +688,7 @@ document.addEventListener("mouseup", () => {
     const info = selectionInfo();
     if (!info) return (pillEl.hidden = true);
     state.draft = info;
+    pillEl.textContent = info.math ? "＋ 本段意见" : "＋ 批注";
     pillEl.hidden = false;
     pillEl.style.top = window.scrollY + info.rect.top - 34 + "px";
     pillEl.style.left = window.scrollX + Math.max(12, info.rect.left) + "px";
@@ -695,7 +712,8 @@ function openComposer(anchor, editId = null) {
   c.id = "composer";
   c.innerHTML = `
     <div class="head"><span class="who">${anchor.para ? "P" + anchor.para : "全文"}</span>
-      <span>${anchor.quote ? "· 引文" : `· ${anchor.para ? "整段" : "全文"}`}</span></div>
+      <span>${anchor.quote ? "· 引文"
+        : `· ${anchor.math ? "公式（整段）" : anchor.para ? "整段" : "全文"}`}</span></div>
     ${anchor.quote ? `<div class="quote">「<em>${esc(quoteLabel(anchor.quote))}</em>」</div>` : ""}
     <div class="editor">
       <textarea placeholder="写意见…（Ctrl+Enter 保存，Esc 取消）"></textarea>

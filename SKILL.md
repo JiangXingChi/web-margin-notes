@@ -1,7 +1,7 @@
 ---
 name: "web-margin-notes"
 description: "生成可复用的「Word 式边注」批注网页（Flask + 原生 JS，无 npm），指向任意 markdown 文稿：作者划词写意见，代理人读 notes.json 逐条改稿并回写状态；作者可手动标「这段改完了」，下次打开自动跳过。触发语：做一个批注/标注工具、让作者在稿子上划词提意见、Word 里那种边注、批注后按意见改稿、标已改/段落审完、下次别再让我看这些段、annotate a markdown draft with margin comments、mark paragraphs as reviewed、read annotation feedback and revise。"
-version: 7.19
+version: 7.20
 license: MIT
 created: "2026-11-02"
 updated: "2026-11-16"
@@ -49,7 +49,7 @@ updated: "2026-11-16"
 KaTeX 随模板自带（`templates/static/vendor/katex/`，约 0.6 MB，离线可用）：
 
 - 行内 `$…$` 在当前段就地渲染；选区偏移按 `indexOf` 回退到原文，普通句子仍能精确锚定，跨公式的选区会降级成 orphan（有提示）；
-- 整段 `$$…$$` 渲染成公式，`\tag{12-1a}` 编号照常显示；原文放隐藏的 `.ptext.mathsrc`，该段只支持整段意见；
+- 整段 `$$…$$` 渲染成公式，`\tag{12-1a}` 编号照常显示；原文放隐藏的 `.ptext.mathsrc`。公式是 KaTeX 渲染出来的，查不回原文偏移，所以**选公式只给整段意见**（v7.20 起划公式也弹按钮，标签写「＋ 本段意见」，编辑器头标 `P# · 公式（整段）`；此前选公式静默无按钮，作者以为坏了）；
 - 批注卡片引文里的 `$…$` 也渲染，不再露出 TeX。
 
 ## Pitfalls
@@ -110,6 +110,7 @@ KaTeX 随模板自带（`templates/static/vendor/katex/`，约 0.6 MB，离线�
 - `export/意见清单.md` 与 `notes.json` 的条数、顺序、引文一致。
 - 已读进度按**文稿路径**记（`wmn:read:<path>`）；"待处理"计数不含 `orphan`，失效条目单列。
 - 打开页面（逐段模式）：底部显示 `P#`，该段不是第一个已改段（前面有已改段则自动跳过并在 toast 里报告跳过数）；全篇都标完时落回首段。
+- 公式选区（v7.20）：划行间公式（KaTeX `.mathbox`）也弹「＋ 本段意见」，落到该段整段意见（`quote=""`）；此前 `selectionInfo()` 遇到 `.mathsrc` 直接返回 null，作者选公式看不到按钮。
 - 段落审核（v7.4）：`POST /api/review/<para>` 标 `done` 后，`/api/doc` 的 `review` 出现该段、`totals.reviewed` 加一；再 POST `{"done": false}` 撤销。改这段正文后刷新，状态变 `stale`（`reviewed_stale` 加一），地图画虚线橙框。
 - `reply` 只在 `status=done` 时显示；撤回 done 时后端会清掉 `reply`/`doneAt`。
 

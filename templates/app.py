@@ -254,11 +254,33 @@ def relocate(note, paras):
             s, e, _ = hit
             return p_obj["i"], s, p_obj["text"][s:e], "fuzzy"
 
+    # 改后文本：改了词句以后旧引文必然找不到，按代理人回写的 changed 定位新句子
+    changed = (note.get("changed") or "").strip()
+    if changed:
+        if text is not None:
+            p = text.find(changed)
+            if p >= 0:
+                return para_no, p, changed, "changed"
+        for p_obj in paras:
+            p = p_obj["text"].find(changed)
+            if p >= 0:
+                return p_obj["i"], p, changed, "changed"
+
     return para_no, 0, quote, "orphan"
 
 
 def decorate(doc, data):
     paras = doc["paras"]
+    # 最新一轮：只给这一轮的改动标色，前几轮的旧改动不再标（作者要求）
+    rounds = []
+    for n in data.get("notes", []):
+        r = n.get("round")
+        if n.get("status") == "done" and r not in (None, ""):
+            try:
+                rounds.append(float(r))
+            except (TypeError, ValueError):
+                pass
+    latest_round = max(rounds) if rounds else None
     out = []
     for n in data["notes"]:
         n = dict(n)
@@ -269,6 +291,12 @@ def decorate(doc, data):
         n["offset"] = off
         n["quote_anchor"] = quote
         n["anchor"] = st
+        try:
+            nr = float(n.get("round")) if n.get("round") not in (None, "") else None
+        except (TypeError, ValueError):
+            nr = None
+        n["hl"] = (n.get("status") == "done"
+                   and (latest_round is None or nr == latest_round))
         text = paras[para - 1]["text"] if 1 <= para <= len(paras) else ""
         n["para_head"] = text[:16]
         out.append(n)
@@ -415,9 +443,17 @@ def api_status(nid):
                     n["doneAt"] = now()
                     if body.get("reply") is not None:
                         n["reply"] = str(body["reply"]).strip()
+                    # changed：改后的新句子，供页面在新文本里重新定位并标色
+                    if body.get("changed") is not None:
+                        n["changed"] = str(body["changed"]).strip()
+                    # round：轮次号，页面只给最新一轮的改动标色
+                    if body.get("round") is not None:
+                        n["round"] = body["round"]
                 else:
                     n.pop("reply", None)
                     n.pop("doneAt", None)
+                    n.pop("changed", None)
+                    n.pop("round", None)
                 save_notes(data)
                 return jsonify(ok=True)
     return jsonify(error="找不到该批注"), 404
