@@ -65,14 +65,8 @@ async function toggleReview(i) {
   if (el) {
     el.classList.toggle("rev", done);
     el.classList.toggle("revstale", !done && isStale(i));
-    const b = el.querySelector(".pmark");
-    if (b) {
-      b.innerHTML = done ? "<b>☑</b><i>已审</i>"
-        : isStale(i) ? "<b>↻</b><i>重审</i>" : "<b>☐</b><i>未审</i>";
-      b.classList.toggle("on", done);
-      b.classList.toggle("stale", !done && isStale(i));
-    }
   }
+  syncDoneBtn();
   toast(done ? `P${i} 已审` : `P${i} 取消已审`);
 }
 
@@ -91,6 +85,18 @@ function currentPara() {
   return state.mode === "focus" ? state.cur : paraAtViewport();
 }
 
+
+function syncDoneBtn() {
+  const b = $("#f-done");
+  if (!b) return;
+  const i = currentPara();
+  const on = i ? isReviewed(i) : false;
+  const stale = i ? isStale(i) : false;
+  b.classList.toggle("on", on);
+  b.classList.toggle("stale", stale);
+  b.textContent = on ? "☑ 已审" : stale ? "↻ 本节改过，重标审完" : "☐ 审完本段";
+  b.title = on ? "再点一次撤销（m）" : "把这一段标为审完，之后可跳过（m）";
+}
 
 function noteCount(i) {
   return state.notes.filter((n) => n.para_anchor === i).length;
@@ -148,6 +154,7 @@ function gotoPara(i, opts = {}) {
   renderCards();
   renderMap();
   $("#f-pos").textContent = `P${i} / ${total}`;
+  syncDoneBtn();
   markRead(i);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -159,6 +166,7 @@ function applyModeChrome() {
   $("#focusbar").hidden = !focus;
   $("#btn-mode").textContent = focus ? "全文" : "逐段";
   $("#f-pos").textContent = `P${state.cur} / ${state.doc.paras.length}`;
+  syncDoneBtn();
 }
 
 function setMode(mode) {
@@ -369,16 +377,6 @@ function renderDoc() {
       : openComposer({ para: p.i, quote: "", prefix: "", suffix: "", offset: 0 }));
     el.append(no);
 
-    const mk = document.createElement("button");
-    mk.className = "pmark" + (isReviewed(p.i) ? " on" : "") + (isStale(p.i) ? " stale" : "");
-    mk.innerHTML = isReviewed(p.i) ? "<b>☑</b><i>已审</i>"
-      : isStale(p.i) ? "<b>↻</b><i>重审</i>" : "<b>☐</b><i>未审</i>";
-    mk.title = isReviewed(p.i) ? "本段已审，再点撤销（m）"
-      : isStale(p.i) ? "正文改过了，需重看；点一下重新标为审完（m）"
-      : "标为审完，之后可跳过（m）";
-    mk.setAttribute("aria-label", mk.title);
-    mk.onclick = (e) => { e.stopPropagation(); toggleReview(p.i); };
-    el.append(mk);
     if (isReviewed(p.i)) el.classList.add("rev");
     else if (isStale(p.i)) el.classList.add("revstale");
 
@@ -762,6 +760,7 @@ $("#btn-mode").onclick = () => setMode(state.mode === "focus" ? "all" : "focus")
 $("#f-prev").onclick = () => gotoPara(state.cur - 1);
 $("#f-next").onclick = () => gotoPara(state.cur + 1);
 $("#f-ctx").onchange = (e) => { state.showCtx = e.target.checked; renderDoc(); layoutCards(); };
+$("#f-done").onclick = () => toggleReview(currentPara());
 
 /* 字号：正文与批注卡同比放缩（--fs），记在 localStorage */
 const FS_KEY = "wmn:fs";
