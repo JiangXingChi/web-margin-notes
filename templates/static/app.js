@@ -120,6 +120,7 @@ function renderMap() {
     if (cnt) b.classList.add("has");
     if (fixedBy.has(p.i)) b.classList.add("fixed");
     if (state.read.has(p.i)) b.classList.add("read");
+    b.classList.toggle("todo", fixedBy.has(p.i) && !isReviewed(p.i));
     if (isReviewed(p.i)) b.classList.add("rev");
     else if (isStale(p.i)) b.classList.add("revstale");
     if (state.mode === "focus" && p.i === state.cur) b.classList.add("cur");
@@ -379,6 +380,11 @@ function renderDoc() {
 
     if (isReviewed(p.i)) el.classList.add("rev");
     else if (isStale(p.i)) el.classList.add("revstale");
+    // 已按批注改过、但作者还没点「审完」的段：黄底提示待复核
+    if (!isReviewed(p.i)
+        && state.notes.some((n) => n.para_anchor === p.i && n.status === "done" && n.reply)) {
+      el.classList.add("revised");
+    }
 
     const mine = state.notes.filter((n) => visible(n) && n.para_anchor === p.i);
     const rendered = new Set();

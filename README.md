@@ -62,6 +62,7 @@ cd ~/my-review && bash start.sh
 | 「导出清单」 | 写 `export/意见清单.md` |
 | 「复制全部」 | 全部意见复制到剪贴板 |
 | `A−` / `A＋` | 底栏调字号，5% 一档，正文与批注卡同比放缩（记 localStorage） |
+| 黄底段落 | 已按批注改过、还没点「审完本段」的段（地图cell同色）；审完转绿 |
 
 ## Data contract
 
