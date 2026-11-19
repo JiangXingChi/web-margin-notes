@@ -4,7 +4,7 @@ description: "生成可复用的「Word 式边注」批注网页（Flask + 原�
 version: 7.22
 license: MIT
 created: "2026-11-02"
-updated: "2026-11-16"
+updated: "2026-11-19"
 ---
 ## When to Use
 
@@ -55,6 +55,7 @@ KaTeX 随模板自带（`templates/static/vendor/katex/`，约 0.6 MB，离线�
 ## Pitfalls
 
 - **图片路径相对 `media_root`**：`![](figures/x.png)` 由 `/media/<path>` 供给，根目录取 `config.json` 的 `media_root`（默认是文稿所在目录）。文稿若是从 `sections/` 合并到另一个目录的快照，`media_root` 必须指回源项目目录，否则图片 404。外部 http(s) 链接直接引用，不走本路由。
+- **表格对齐语法在批注网页里不生效**：md 的 `:--:`／`:--`／`--:` 列对齐标记 `tableEl()` 不解析，模板 CSS 又写死 `.mdtable th,td{text-align:left}`，网页预览恒为左对齐——作者提「居中/对齐」类批注后，在网页上永远看不出效果，只会以为改稿没生效。处理：① 向作者说明网页预览与正式渲染（打印/Typora）的差异；② 作者若要在网页上确认，给该实例 `static/style.css` 的 `.mdtable th,td` 打补丁（如 `text-align:center`）；不要改全局模板的默认对齐——对齐风格是文稿的事，工具不预设。
 - **图片/表格段不改 `text`**：只用 `figure`／`table` 标记交给前端渲染，段落文本保持原 markdown。若把 `![](a.png)` 删成空串，段号与偏移全乱，已有批注集体降级。
 - **表格渲染后必须反查偏移**：DOM 里没有 `|`，`ptext.textContent` 与原文不同。`selectionInfo()` 发现 `text` 在原 markdown 的该偏移处对不上时，用 `indexOf` 反查一次再算 prefix/suffix，否则引文写入即错位。
 - **orphan 批注不许画高亮**：`relocate()` 定位失败时 `offset` 常回落到 0，前端若照画，十几条失效批注会在段首叠成一大片绿，把新加的黄批注整片盖住，作者只会说「黄色看不见」。`highlightFragment()` 必须过滤 `anchor === "orphan"`，`scrollToAnchor()` 同时回退到段落。
